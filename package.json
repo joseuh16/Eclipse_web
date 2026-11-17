@@ -1,0 +1,16 @@
+{
+  "name": "eclipse-tech",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Eclipse Tech — storefront, panel administrativo y API",
+  "scripts": {
+    "dev": "node scripts/dev.mjs store admin",
+    "dev:all": "node scripts/dev.mjs store admin",
+    "dev:apps": "node scripts/dev.mjs store admin",
+    "dev:store": "node scripts/dev.mjs store",
+    "dev:admin": "node scripts/dev.mjs admin",
+    "dev:api": "node scripts/dev.mjs api",
+    "build": "npm --prefix storefront run build && npm --prefix admin run build",
+    "install:all": "npm --prefix storefront install && npm --prefix admin install"
+  }
+}

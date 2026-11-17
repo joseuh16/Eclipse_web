@@ -1,0 +1,61 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Administradores autorizados (Firebase Auth).
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.email in [
+          'admin@eclipse.tech',
+          'jjaimej7@gmail.com',
+          'marisolestradaaguir@gmail.com'
+        ];
+    }
+
+    // Catálogo y contenido público (lectura para la tienda).
+    match /products/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /banners/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /combos/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /themes/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /settings/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /coupons/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /news/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Pedidos: la tienda puede crearlos; solo el panel los lee/actualiza.
+    match /orders/{id} {
+      allow create: if true;
+      allow read, update, delete: if isAdmin();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
