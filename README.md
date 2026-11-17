@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Eclipse Tech
 
 Tienda de licencias digitales y streaming con backend propio, storefront público y panel administrativo privado. Todo el stack está contenedorizado y listo para desplegar en Docker o Coolify.
@@ -185,3 +186,6 @@ dotnet run --project backend/Eclipse.Api
 - Swagger está deshabilitado por defecto en producción (`SWAGGER_ENABLED=false`).
 - El panel administrativo envía `X-Robots-Tag: noindex` y su `robots.txt` bloquea indexación.
 - Los pagos se validan manualmente desde el panel; no se almacenan datos de tarjetas.
+=======
+# Eclipse_web
+>>>>>>> 5364e4fc0593ac0991c3aeca3784075a4e22a633
