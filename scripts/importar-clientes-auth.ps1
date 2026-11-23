@@ -73,13 +73,8 @@ foreach ($u in $users) {
 
   $createdAt = ''
   if ($u.creationTime) {
-    $rawDate = [string]$u.creationTime
     try {
-      if ($rawDate -match '^\d+$') {
-        $createdAt = [DateTimeOffset]::FromUnixTimeMilliseconds([int64]$rawDate).UtcDateTime.ToString('o')
-      } else {
-        $createdAt = [DateTimeOffset]::Parse($rawDate).UtcDateTime.ToString('o')
-      }
+      $createdAt = [DateTimeOffset]::FromUnixTimeMilliseconds([int64]$u.creationTime).UtcDateTime.ToString('o')
     } catch { $createdAt = '' }
   }
 

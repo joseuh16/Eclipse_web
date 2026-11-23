@@ -4,7 +4,7 @@
 // Colecciones: products, themes, banners, coupons, combos, settings, orders.
 // ---------------------------------------------------------------------------
 // # por que si puedo declarar variables pero no mi amor por ella
-// # dia dos no dormi en el codigo 
+// # dia dos no dormi en el codigo porfa asi lo documentas y asi
 // ---------------------------------------------------------------------------
 import {
   addDoc,

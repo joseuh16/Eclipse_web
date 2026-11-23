@@ -409,14 +409,7 @@ export const api = {
   theme: {
     get: () => rtdbGetTheme(),
     save: async (payload: ThemeInput) => {
-      const now = new Date().toISOString()
-      const response = await rtdbGetTheme()
-      const previousKey = response.active?.themeKey
-      if (previousKey && previousKey !== payload.themeKey) {
-        const previous = response.themes.find((theme) => theme.themeKey === previousKey)
-        if (previous) await rtdbSaveTheme(previousKey, { ...previous, isActive: false, updatedAt: now })
-      }
-      const theme: Theme = { id: 1, ...payload, isActive: true, updatedAt: now }
+      const theme: Theme = { id: 1, ...payload, isActive: true, updatedAt: new Date().toISOString() }
       await rtdbSaveTheme(payload.themeKey, theme)
       return theme
     },

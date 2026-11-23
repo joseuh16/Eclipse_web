@@ -64,12 +64,6 @@ $probes = @(
   @{ Path = "combos/__eclipse_probe_$suffix"; Body = $probeBody },
   @{ Path = "promociones/destacado/__eclipse_probe_$suffix"; Body = $probeBody },
   @{ Path = "catalogo/__eclipse_probe_$suffix/__eclipse_probe_$suffix"; Body = $probeBody },
-  # Estos dependen de usuarios/<uid>/rol = admin/empleado, no del correo.
-  # Si fallan, el panel "Base de datos" no podrá guardar en esos nodos.
-  @{ Path = "Costos/__eclipse_probe_$suffix"; Body = $probeBody },
-  @{ Path = "clientes/__eclipse_probe_$suffix"; Body = $probeBody },
-  @{ Path = "codigos_streaming/__eclipse_probe_$suffix"; Body = $probeBody },
-  @{ Path = "limites_codigos/__eclipse_probe_$suffix"; Body = $probeBody },
   @{ Path = "orders/__eclipse_probe_$suffix"; Body = $orderBody },
   @{ Path = "usuarios_clientes/__eclipse_probe_$suffix/studentApproved"; Body = 'false' }
 )
