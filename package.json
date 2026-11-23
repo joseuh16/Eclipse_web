@@ -11,6 +11,8 @@
     "dev:admin": "node scripts/dev.mjs admin",
     "dev:api": "node scripts/dev.mjs api",
     "build": "npm --prefix storefront run build && npm --prefix admin run build",
+    "deploy:rules": "npx --yes firebase-tools@13 deploy --only database",
+    "deploy:storage": "npx --yes firebase-tools@13 deploy --only storage",
     "install:all": "npm --prefix storefront install && npm --prefix admin install"
   }
 }

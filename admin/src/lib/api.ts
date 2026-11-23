@@ -4,14 +4,18 @@
 // cupones, contenido e órdenes se leen/escrituran desde Firebase Realtime DB
 // usando la misma instancia `rtdb` de ./firebase.
 // ---------------------------------------------------------------------------
-import { ApiError, UNAUTHORIZED_EVENT, getToken, setToken, api as firestoreApi } from './firestoreApi'
+import { auth } from './firebase'
+import { signInAdmin, toAdminUser } from './firebaseAuth'
 import {
   bannerKeys,
   hashId,
+  rtdbDashboardStats,
   rtdbGetBanners,
   rtdbGetCombos,
   rtdbGetContent,
   rtdbGetCoupons,
+  rtdbGetCustomers,
+  rtdbGetDatabaseNode,
   rtdbGetOrders,
   rtdbGetProducts,
   rtdbGetSettings,
@@ -19,11 +23,15 @@ import {
   rtdbRemoveBanner,
   rtdbRemoveCombo,
   rtdbRemoveCouponById,
+  rtdbRemoveDatabaseRecord,
   rtdbRemoveProductById,
   rtdbRemoveNews,
+  rtdbApproveStudent,
   rtdbSaveBanner,
+  rtdbSaveDatabaseRecord,
   rtdbSaveCombo,
   rtdbSaveContent,
+  rtdbSaveDelivery,
   rtdbSaveNews,
   rtdbSaveCoupon,
   rtdbSaveSettings,
@@ -32,6 +40,7 @@ import {
   rtdbToggleProduct,
   rtdbUpdateOrder,
   rtdbUpdateProduct,
+  rtdbVerifyAdult,
 } from './rtdb'
 import type {
   Banner,
@@ -41,6 +50,7 @@ import type {
   ComboInput,
   Coupon,
   CouponInput,
+  DeliveredAccount,
   NewsInput,
   NewsItem,
   Order,
@@ -55,7 +65,38 @@ import type {
   ThemeInput,
 } from '../types'
 
-export { ApiError, UNAUTHORIZED_EVENT, getToken, setToken }
+const TOKEN_KEY = 'eclipse_admin_token'
+export const UNAUTHORIZED_EVENT = 'eclipse:unauthorized'
+
+export function getToken() {
+  try {
+    return window.sessionStorage.getItem(TOKEN_KEY) || window.localStorage.getItem(TOKEN_KEY)
+  } catch {
+    return null
+  }
+}
+
+export function setToken(token: string | null, remember = true) {
+  try {
+    window.sessionStorage.removeItem(TOKEN_KEY)
+    window.localStorage.removeItem(TOKEN_KEY)
+    if (!token) return
+    const storage = remember ? window.localStorage : window.sessionStorage
+    storage.setItem(TOKEN_KEY, token)
+  } catch {
+    // Storage may be unavailable; the in-memory session still works until reload.
+  }
+}
+
+export class ApiError extends Error {
+  status: number
+
+  constructor(message: string, status = 0) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+  }
+}
 
 const slug = (value: string) => value.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-') || `key-${Date.now()}`
 
@@ -99,8 +140,22 @@ function toCoupon(input: CouponInput, id: number, usedCount: number, createdAt: 
 }
 
 export const api = {
-  auth: firestoreApi.auth,
-  dashboard: firestoreApi.dashboard,
+  auth: {
+    login: async (email: string, password: string) => {
+      const user = await signInAdmin(email, password, true)
+      return {
+        token: await user.getIdToken(),
+        expiresAtUtc: '',
+        user: toAdminUser(user),
+      }
+    },
+    me: async () => {
+      const user = auth.currentUser
+      if (!user) throw new ApiError('Sesión no encontrada.', 401)
+      return toAdminUser(user)
+    },
+  },
+  dashboard: { stats: () => rtdbDashboardStats() },
 
   products: {
     list: (params: { search?: string; category?: Category } = {}) => rtdbGetProducts(params),
@@ -272,12 +327,18 @@ export const api = {
       search?: string
       from?: string
       to?: string
+      adultOnly?: boolean
       page?: number
       pageSize?: number
     } = {}) => {
       const result = await rtdbGetOrders()
       let items = [...result.items]
       if (params.status) items = items.filter((o) => o.status === params.status)
+      if (params.adultOnly) {
+        items = items.filter(
+          (o) => o.adultVerification != null || o.items.some((item) => item.isAdultOnly),
+        )
+      }
       const term = params.search?.trim().toLowerCase()
       if (term) {
         items = items.filter((o) =>
@@ -303,6 +364,38 @@ export const api = {
       if (!order) throw new ApiError('Orden no encontrada.', 404)
       return order
     },
+    verifyAdult: async (id: number, verified = true) => {
+      await rtdbVerifyAdult(id, verified)
+      const result = await rtdbGetOrders()
+      const order = result.items.find((o) => o.id === id)
+      if (!order) throw new ApiError('Orden no encontrada.', 404)
+      return order
+    },
+    saveDelivery: async (id: number, accounts: DeliveredAccount[], emailSent: boolean) => {
+      await rtdbSaveDelivery(id, accounts, emailSent)
+      const result = await rtdbGetOrders()
+      const order = result.items.find((o) => o.id === id)
+      if (!order) throw new ApiError('Orden no encontrada.', 404)
+      return order
+    },
+  },
+
+  customers: {
+    list: () => rtdbGetCustomers(),
+    approve: (uid: string, approved: boolean) => rtdbApproveStudent(uid, approved),
+  },
+
+  /** Nodos de RTDB administrados de forma genérica desde "Base de datos". */
+  database: {
+    list: (node: string) => rtdbGetDatabaseNode(node),
+    save: (node: string, key: string, value: unknown) => rtdbSaveDatabaseRecord(node, key, value),
+    remove: (node: string, key: string) => rtdbRemoveDatabaseRecord(node, key),
+  },
+
+  /** @deprecated Usa api.customers. */
+  students: {
+    list: () => rtdbGetCustomers(),
+    approve: (uid: string, approved: boolean) => rtdbApproveStudent(uid, approved),
   },
 
   settings: {
@@ -324,8 +417,14 @@ export const api = {
       const response = await rtdbGetTheme()
       const target = response.themes.find((theme) => theme.themeKey === themeKey) ?? response.active ?? null
       if (!target) throw new Error('Tema no encontrado.')
-      const updated: Theme = { ...target, isActive: true, updatedAt: new Date().toISOString() }
-      await rtdbSaveTheme(themeKey, { ...updated, isActive: true })
+      const now = new Date().toISOString()
+      const previousKey = response.active?.themeKey
+      if (previousKey && previousKey !== themeKey) {
+        const previous = response.themes.find((theme) => theme.themeKey === previousKey)
+        if (previous) await rtdbSaveTheme(previousKey, { ...previous, isActive: false, updatedAt: now })
+      }
+      const updated: Theme = { ...target, isActive: true, updatedAt: now }
+      await rtdbSaveTheme(themeKey, updated)
       return updated
     },
   },

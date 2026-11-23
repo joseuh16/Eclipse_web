@@ -13,6 +13,7 @@ import {
   X,
 } from 'lucide-react'
 import { useStore } from '../context/StoreContext'
+import { useCustomerAuth } from '../context/CustomerAuthContext'
 import type { PaymentMethod } from '../types'
 import { useToast } from '../context/ToastContext'
 import { DURATIONS, DURATION_LABELS, buildWhatsAppLink, formatCurrency, lineQuote } from '../lib/pricing'
@@ -38,6 +39,7 @@ export function CartDrawer({ onAccount }: { onAccount?: () => void } = {}) {
     removeLine,
     openCheckout,
   } = useStore()
+  const { user, profile } = useCustomerAuth()
   const { toast } = useToast()
   const [code, setCode] = useState('')
   const [couponError, setCouponError] = useState('')
@@ -139,7 +141,7 @@ export function CartDrawer({ onAccount }: { onAccount?: () => void } = {}) {
                     >
                       <div className="flex gap-3">
                         <span className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-white/[0.08] bg-white/5">
-                          <ProductImage src={image} alt={name} className="h-full w-full object-cover" />
+                          <ProductImage src={image} alt={name} className="h-full w-full p-1.5" />
                         </span>
 
                         <div className="min-w-0 flex-1">
@@ -316,7 +318,7 @@ export function CartDrawer({ onAccount }: { onAccount?: () => void } = {}) {
                     const details = getPaymentDetails(payMethod, settings)
                     const payLink = buildWhatsAppLink(
                       settings.whatsAppNumber,
-                      `Hola Eclipse Tech, quiero pagar mi carrito por ${details.label}. Total: ${formatCurrency(cartTotal)}. Adjunto mi comprobante.`,
+                      `Hola ${settings.companyName}, quiero pagar mi carrito por ${details.label}. Total: ${formatCurrency(cartTotal)}. Adjunto mi comprobante.`,
                     )
                     return (
                       <div className="mt-3 space-y-2">
@@ -363,17 +365,24 @@ export function CartDrawer({ onAccount }: { onAccount?: () => void } = {}) {
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={() => {
-                  closeCart()
-                  onAccount?.()
-                }}
-                className="mt-3.5 flex w-full items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2.5 text-[11px] font-semibold text-white/65 transition hover:border-white/20 hover:text-white"
-              >
-                <User size={13} />
-                Crear cuenta / Iniciar sesión
-              </button>
+              {user ? (
+                <p className="mt-3.5 flex items-center justify-center gap-2 rounded-full border border-primary/20 bg-primary/[0.07] px-4 py-2.5 text-[11px] font-medium text-white/70">
+                  <User size={13} className="text-accent" />
+                  Comprando como <strong className="font-semibold text-white">{profile?.displayName?.split(' ')[0] || user.email?.split('@')[0] || 'cliente'}</strong>
+                </p>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    closeCart()
+                    onAccount?.()
+                  }}
+                  className="mt-3.5 flex w-full items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2.5 text-[11px] font-semibold text-white/65 transition hover:border-white/20 hover:text-white"
+                >
+                  <User size={13} />
+                  Crear cuenta / Iniciar sesión
+                </button>
+              )}
               <button type="button" onClick={openCheckout} className="btn-primary mt-2 w-full">
                 Finalizar compra
                 <ArrowRight size={15} />

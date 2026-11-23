@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react'
@@ -41,6 +42,9 @@ const DEFAULT_THEME: Theme = {
 
 const DEFAULT_SETTINGS: PaymentSettings = {
   id: 0,
+  companyName: 'Eclipse Tech',
+  logoUrl: '',
+  studentDiscountPercent: 0,
   bankName: 'BBVA México',
   beneficiary: 'Eclipse Digital MX',
   clabeNumber: '012180015478965432',
@@ -78,6 +82,8 @@ interface StoreContextValue {
   closeCart: () => void
   checkoutOpen: boolean
   openCheckout: () => void
+  /** La App registra aquí la validación de login antes de comprar. */
+  registerCheckoutGuard: (guard: () => boolean) => void
   closeCheckout: () => void
   quickBuyProduct: Product | null
   openQuickBuy: (product: Product) => void
@@ -120,6 +126,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [cartOpen, setCartOpen] = useState(false)
   const [checkoutOpen, setCheckoutOpen] = useState(false)
   const [quickBuyProduct, setQuickBuyProduct] = useState<Product | null>(null)
+  const checkoutGuard = useRef<() => boolean>(() => true)
 
   useEffect(() => {
     let cancelled = false
@@ -157,6 +164,32 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  // Refresca el tema al volver a la pestaña: si el admin aplica un tema nuevo,
+  // la tienda lo toma sin necesidad de recargar la página.
+  useEffect(() => {
+    let cancelled = false
+    const refreshTheme = async () => {
+      try {
+        const result = await api.getTheme()
+        if (cancelled || !result.active) return
+        setTheme(result.active)
+        setThemes(result.themes ?? [])
+      } catch {
+        // Sin conexión: conserva el tema actual.
+      }
+    }
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') void refreshTheme()
+    }
+    window.addEventListener('focus', refreshTheme)
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      cancelled = true
+      window.removeEventListener('focus', refreshTheme)
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
+  }, [])
+
   useEffect(() => {
     const root = document.documentElement
     root.style.setProperty('--primary-rgb', hexToRgb(theme.primaryColor))
@@ -188,6 +221,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       style.remove()
     }
   }, [theme])
+
+  // El nombre de la empresa configurado en el panel se refleja en el navegador.
+  useEffect(() => {
+    const name = settings.companyName || 'Eclipse Tech'
+    document.title = `${name} — Licencias digitales y streaming`
+    const ogTitle = document.querySelector('meta[property="og:title"]')
+    ogTitle?.setAttribute('content', name)
+  }, [settings.companyName])
 
   useEffect(() => {
     try {
@@ -308,7 +349,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const closeCart = useCallback(() => setCartOpen(false), [])
 
+  const registerCheckoutGuard = useCallback((guard: () => boolean) => {
+    checkoutGuard.current = guard
+  }, [])
+
   const openCheckout = useCallback(() => {
+    if (!checkoutGuard.current()) return
     setCartOpen(false)
     setQuickBuyProduct(null)
     setCheckoutOpen(true)
@@ -349,6 +395,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       closeCart,
       checkoutOpen,
       openCheckout,
+      registerCheckoutGuard,
       closeCheckout,
       quickBuyProduct,
       openQuickBuy,
@@ -378,6 +425,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       closeCart,
       checkoutOpen,
       openCheckout,
+      registerCheckoutGuard,
       closeCheckout,
       quickBuyProduct,
       openQuickBuy,

@@ -1,7 +1,14 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { MessageCircle } from 'lucide-react'
 import { useStore } from './context/StoreContext'
+import { useCustomerAuth } from './context/CustomerAuthContext'
 import { api } from './lib/api'
+import {
+  onOpenAccountModal,
+  onOpenComboBuilder,
+  onPaymentProof,
+  type PaymentProofDetail,
+} from './lib/events'
 import { useLockBody } from './lib/hooks'
 import { buildWhatsAppLink } from './lib/pricing'
 import type { Banner, Category, Product } from './types'
@@ -11,24 +18,29 @@ import type { Banner, Category, Product } from './types'
 // # dia dos no dormi en el codigo porfa asi lo documentas y asi
 // ---------------------------------------------------------------------------
 import { AboutSection } from './components/AboutSection'
-import { AccountModal } from './components/AccountModal'
-import { AgeGateModal } from './components/AgeGateModal'
 import { AnnouncementBar } from './components/AnnouncementBar'
 import { CartDrawer } from './components/CartDrawer'
 import { Catalog } from './components/Catalog'
 import { CategoryPills } from './components/CategoryPills'
-import { CheckoutModal } from './components/CheckoutModal'
 import { DoomsdayPromo } from './components/DoomsdayPromo'
 import { FeaturedRail } from './components/FeaturedRail'
 import { Footer } from './components/Footer'
 import { Header } from './components/Header'
 import { HeroCarousel } from './components/HeroCarousel'
-import { QuickBuyModal } from './components/QuickBuyModal'
+import { ReviewsSection } from './components/ReviewsSection'
+import { SupportChat } from './components/SupportChat'
 import { TrustStrip } from './components/TrustStrip'
 
 const AGE_KEY = 'eclipse_age_verified'
 
-const CombosPage = lazy(() => import('./components/CombosPage').then((m) => ({ default: m.CombosPage })))
+// Modales pesados: solo se descargan cuando el cliente los abre.
+const AccountModal = lazy(() => import('./components/AccountModal').then((m) => ({ default: m.AccountModal })))
+const AgeGateModal = lazy(() => import('./components/AgeGateModal').then((m) => ({ default: m.AgeGateModal })))
+const CheckoutModal = lazy(() => import('./components/CheckoutModal').then((m) => ({ default: m.CheckoutModal })))
+const ComboModal = lazy(() => import('./components/ComboModal').then((m) => ({ default: m.ComboModal })))
+const PaymentProofModal = lazy(() => import('./components/PaymentProofModal').then((m) => ({ default: m.PaymentProofModal })))
+const QuickBuyModal = lazy(() => import('./components/QuickBuyModal').then((m) => ({ default: m.QuickBuyModal })))
+
 const CuentaPage = lazy(() => import('./components/CuentaPage').then((m) => ({ default: m.CuentaPage })))
 const DalePlayPage = lazy(() => import('./components/DalePlayPage').then((m) => ({ default: m.DalePlayPage })))
 const FaqPage = lazy(() => import('./components/FaqPage').then((m) => ({ default: m.FaqPage })))
@@ -40,7 +52,17 @@ function getRoute() {
 }
 
 export default function App() {
-  const { settings, openQuickBuy, cartOpen, checkoutOpen, quickBuyProduct } = useStore()
+  const {
+    settings,
+    openQuickBuy,
+    cartOpen,
+    checkoutOpen,
+    quickBuyProduct,
+    registerCheckoutGuard,
+    closeCart,
+    closeQuickBuy,
+  } = useStore()
+  const { user } = useCustomerAuth()
   const [banners, setBanners] = useState<Banner[]>([])
   const [category, setCategory] = useState<Category | 'all'>('all')
   const [search, setSearch] = useState('')
@@ -49,10 +71,14 @@ export default function App() {
   )
   const [ageGateOpen, setAgeGateOpen] = useState(false)
   const [accountOpen, setAccountOpen] = useState(false)
+  const [comboOpen, setComboOpen] = useState(false)
+  const [proof, setProof] = useState<PaymentProofDetail | null>(null)
   const [pendingAdultAction, setPendingAdultAction] = useState<null | (() => void)>(null)
   const [route, setRoute] = useState(getRoute)
 
-  useLockBody(cartOpen || checkoutOpen || Boolean(quickBuyProduct) || ageGateOpen)
+  useLockBody(
+    cartOpen || checkoutOpen || Boolean(quickBuyProduct) || ageGateOpen || comboOpen || Boolean(proof),
+  )
 
   useEffect(() => {
     const onHash = () => {
@@ -62,6 +88,23 @@ export default function App() {
     window.addEventListener('hashchange', onHash)
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
+
+  // Solo se puede comprar con sesión iniciada. Si no hay usuario, abrimos Cuenta.
+  useEffect(() => {
+    registerCheckoutGuard(() => {
+      if (!user) {
+        closeCart()
+        closeQuickBuy()
+        setAccountOpen(true)
+        return false
+      }
+      return true
+    })
+  }, [user, registerCheckoutGuard, closeCart, closeQuickBuy])
+
+  useEffect(() => onPaymentProof(setProof), [])
+  useEffect(() => onOpenComboBuilder(() => setComboOpen(true)), [])
+  useEffect(() => onOpenAccountModal(() => setAccountOpen(true)), [])
 
   useEffect(() => {
     let cancelled = false
@@ -146,7 +189,7 @@ export default function App() {
 
   const supportLink = buildWhatsAppLink(
     settings.whatsAppNumber,
-    'Hola Eclipse Tech, necesito ayuda con mi compra.',
+    `Hola ${settings.companyName}, necesito ayuda con mi compra.`,
   )
 
   return (
@@ -159,8 +202,6 @@ export default function App() {
         <FaqPage />
       ) : route === 'noticias' || route.startsWith('noticias/') ? (
         <NewsPage slug={route.startsWith('noticias/') ? route.slice('noticias/'.length) : undefined} />
-      ) : route === 'combos' ? (
-        <CombosPage />
       ) : route === 'cuenta' ? (
         <CuentaPage />
       ) : route === 'dale-play' ? (
@@ -170,10 +211,9 @@ export default function App() {
           <HeroCarousel banners={banners} />
           <TrustStrip />
           <AboutSection />
+          <ReviewsSection />
           <DoomsdayPromo />
-          <CategoryPills active={category} onSelect={handleCategory} onCombos={() => {
-            window.location.hash = '#/combos'
-          }} />
+          <CategoryPills active={category} onSelect={handleCategory} onCombos={() => setComboOpen(true)} />
 
           <FeaturedRail includeAdult={includeAdult} onOpen={handleOpenProduct} />
 
@@ -203,11 +243,19 @@ export default function App() {
         <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-[#06060d] bg-accent" />
       </a>
 
-      <CartDrawer onAccount={() => { setAccountOpen(true) }} />
-      <QuickBuyModal />
-      <CheckoutModal />
-      <AccountModal open={accountOpen} onClose={() => setAccountOpen(false)} />
-      <AgeGateModal open={ageGateOpen} onClose={closeAgeGate} onConfirm={confirmAdult} />
+      <CartDrawer onAccount={() => setAccountOpen(true)} />
+      <SupportChat />
+
+      <Suspense fallback={null}>
+        {quickBuyProduct ? <QuickBuyModal /> : null}
+        {checkoutOpen ? <CheckoutModal /> : null}
+        {accountOpen ? <AccountModal open onClose={() => setAccountOpen(false)} /> : null}
+        {ageGateOpen ? (
+          <AgeGateModal open onClose={closeAgeGate} onConfirm={confirmAdult} />
+        ) : null}
+        <ComboModal open={comboOpen} onClose={() => setComboOpen(false)} />
+        <PaymentProofModal open={Boolean(proof)} detail={proof} onClose={() => setProof(null)} />
+      </Suspense>
     </div>
   )
 }

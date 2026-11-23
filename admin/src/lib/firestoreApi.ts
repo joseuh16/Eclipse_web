@@ -469,6 +469,9 @@ const orders = {
 // ---------------------------------------------------------------------------
 const DEFAULT_SETTINGS: PaymentSettings = {
   id: 1,
+  companyName: 'Eclipse Tech',
+  logoUrl: '',
+  studentDiscountPercent: 0,
   bankName: 'BBVA México',
   beneficiary: 'Eclipse Digital',
   clabeNumber: '012180000000000000',

@@ -4,6 +4,10 @@ import {
   CheckCircle2,
   Clock3,
   CreditCard,
+  FileText,
+  GraduationCap,
+  KeyRound,
+  LogOut,
   MessageCircle,
   Package,
   Receipt,
@@ -12,6 +16,10 @@ import {
   Wallet,
 } from 'lucide-react'
 import { useStore } from '../context/StoreContext'
+import { useCustomerAuth } from '../context/CustomerAuthContext'
+import { api } from '../lib/api'
+import { openPaymentProof } from '../lib/events'
+import type { RtdbCustomerAsset } from '../lib/rtdb'
 import { formatCurrency, formatDate } from '../lib/pricing'
 import { clearClientOrders, readClientOrders, type StoredOrder } from '../lib/clientOrders'
 import { PAYMENT_METHODS, getPaymentDetails } from './PaymentDetails'
@@ -44,18 +52,30 @@ function dueInfo(order: StoredOrder) {
 
 export function CuentaPage() {
   const { settings } = useStore()
+  const { user, profile, studentDiscountPercent, logout } = useCustomerAuth()
   const [orders, setOrders] = useState<StoredOrder[]>([])
+  const [assets, setAssets] = useState<RtdbCustomerAsset[]>([])
   const [selectedId, setSelectedId] = useState<number | null>(null)
 
+  const ownerKey = user?.uid ?? user?.email ?? undefined
+
   const refresh = () => {
-    const next = readClientOrders()
+    const next = readClientOrders(ownerKey)
     setOrders(next)
     setSelectedId((current) => (current && next.some((o) => o.orderId === current) ? current : next[0]?.orderId ?? null))
   }
 
   useEffect(() => {
     refresh()
-  }, [])
+    if (user) {
+      api
+        .getMisCodigos(user.uid, user.email || '')
+        .then(setAssets)
+        .catch(() => setAssets([]))
+    } else {
+      setAssets([])
+    }
+  }, [ownerKey, user])
 
   const selected = useMemo(
     () => orders.find((o) => o.orderId === selectedId) ?? orders[0] ?? null,
@@ -80,7 +100,7 @@ export function CuentaPage() {
               <button
                 type="button"
                 onClick={() => {
-                  clearClientOrders()
+                  clearClientOrders(ownerKey)
                   refresh()
                 }}
                 className="btn-secondary !py-2.5 !text-xs"
@@ -97,12 +117,93 @@ export function CuentaPage() {
             Mi cuenta · Portal del cliente
           </span>
           <h1 className="mt-4 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-            Tus pedidos y fechas de pago
+            {user ? `¡Hola, ${profile?.displayName?.split(' ')[0] || user.email?.split('@')[0] || 'cliente'}!` : 'Tus pedidos y fechas de pago'}
           </h1>
           <p className="mt-3 max-w-2xl text-sm leading-7 text-white/55">
             Consulta el estado de tus compras, el método de pago, el monto y la fecha límite para enviar tu comprobante.
-            Tus pedidos realizados en este dispositivo aparecen aquí automáticamente.
+            Este historial es solo de tu cuenta y aparece aquí automáticamente.
           </p>
+
+          {user && profile ? (
+            <div className="mt-5 flex flex-wrap items-center gap-3 rounded-2xl border border-white/[0.08] bg-black/20 p-4">
+              <span className="grid h-10 w-10 place-items-center rounded-xl bg-primary/15 text-accent">
+                <GraduationCap size={18} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-xs font-semibold text-white">
+                  {profile.displayName || user.email}
+                </p>
+                <p className="mt-0.5 truncate text-[10px] text-white/45">{profile.email || user.email}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  void logout().then(() => {
+                    window.location.hash = '#/'
+                  })
+                }}
+                className="flex items-center gap-1.5 rounded-full border border-white/10 px-3 py-1.5 text-[10px] font-medium text-white/60 transition hover:border-white/25 hover:text-white"
+              >
+                <LogOut size={12} />
+                Cerrar sesión
+              </button>
+              {profile.isStudent ? (
+                <span
+                  className={`rounded-full border px-3 py-1.5 text-[10px] font-semibold ${
+                    profile.studentApproved
+                      ? 'border-emerald-400/25 bg-emerald-400/10 text-emerald-200'
+                      : 'border-amber-400/25 bg-amber-400/10 text-amber-100'
+                  }`}
+                >
+                  {profile.studentApproved
+                    ? `Estudiante · -${studentDiscountPercent}%`
+                    : 'Estudiante en revisión'}
+                </span>
+              ) : (
+                <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[10px] text-white/45">
+                  Sin descuento de estudiante
+                </span>
+              )}
+            </div>
+          ) : (
+            <div className="mt-5 flex items-center gap-2 rounded-2xl border border-primary/20 bg-primary/[0.07] px-4 py-3 text-[11px] text-white/60">
+              <GraduationCap size={14} className="shrink-0 text-accent" />
+              Inicia sesión desde <span className="font-semibold text-white">Mi cuenta</span> para activar tu descuento de estudiante.
+            </div>
+          )}
+
+          {user ? (
+            <div className="mt-6 rounded-2xl border border-white/[0.08] bg-black/20 p-5">
+              <p className="flex items-center gap-2 text-[11px] font-semibold text-white/80">
+                <KeyRound size={14} className="text-accent" />
+                Mis códigos y cuentas
+              </p>
+              {assets.length === 0 ? (
+                <p className="mt-2 text-[10px] leading-5 text-white/40">
+                  Todavía no hay códigos asignados a tu correo. Cuando se apruebe tu pago aparecerán aquí.
+                </p>
+              ) : (
+                <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {assets.map((asset) => (
+                    <li
+                      key={`${asset.node}-${asset.key}`}
+                      className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-3"
+                    >
+                      <p className="truncate text-[10px] font-semibold text-white/80">
+                        {asset.plataforma || asset.titulo}
+                      </p>
+                      {asset.valor ? (
+                        <p className="mt-1 break-all font-mono text-[11px] text-accent">{asset.valor}</p>
+                      ) : null}
+                      {asset.vigenciaHasta ? (
+                        <p className="mt-1 text-[9px] text-white/35">Vence: {asset.vigenciaHasta}</p>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ) : null}
 
           <div className="mt-6 grid gap-3 sm:grid-cols-3">
             <div className="rounded-2xl border border-white/[0.08] bg-black/20 p-4">
@@ -115,7 +216,7 @@ export function CuentaPage() {
             </div>
             <div className="rounded-2xl border border-white/[0.08] bg-black/20 p-4">
               <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/35">Soporte</p>
-              <p className="mt-2 text-sm font-medium text-white/85">{settings.whatsAppNumber || 'WhatsApp Eclipse'}</p>
+              <p className="mt-2 text-sm font-medium text-white/85">{settings.whatsAppNumber || `WhatsApp ${settings.companyName}`}</p>
             </div>
           </div>
         </div>
@@ -211,7 +312,7 @@ export function CuentaPage() {
                       </p>
                       <p className="mt-3 inline-flex items-center gap-1.5 text-[11px] text-white/40">
                         <CalendarClock size={12} />
-                        Estado: {selected.status === 'Pending' ? 'En espera de comprobante' : selected.status === 'Verified' ? 'Validado por Eclipse' : 'Sin vigencia'}
+                        Estado: {selected.status === 'Pending' ? 'En espera de comprobante' : selected.status === 'Verified' ? `Validado por ${settings.companyName}` : 'Sin vigencia'}
                       </p>
                     </div>
                     <div className="rounded-2xl border border-white/[0.08] bg-white/[0.025] p-4">
@@ -272,6 +373,22 @@ export function CuentaPage() {
                       <MessageCircle size={15} />
                       Enviar comprobante por WhatsApp
                     </a>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        openPaymentProof({
+                          orderNumber: selected.orderNumber,
+                          total: selected.totalAmount,
+                          whatsAppNumber: settings.whatsAppNumber,
+                          companyName: settings.companyName,
+                          customerEmail: user?.email ?? undefined,
+                        })
+                      }
+                      className="btn-secondary flex-1 justify-center"
+                    >
+                      <FileText size={15} />
+                      Adjuntar PDF y mensaje
+                    </button>
                     <div className="flex-1 rounded-xl border border-white/[0.08] bg-white/[0.02] px-4 py-3 text-[11px] leading-5 text-white/45">
                       <span className="inline-flex items-center gap-1.5 font-medium text-white/70">
                         <Receipt size={13} />
@@ -286,7 +403,7 @@ export function CuentaPage() {
                   {selected.status === 'Pending' ? (
                     <div className="flex items-start gap-2 rounded-xl border border-amber-400/20 bg-amber-400/[0.06] p-3 text-[11px] leading-5 text-amber-100/80">
                       <Clock3 size={14} className="mt-0.5 shrink-0" />
-                      Tu pago aparece como pendiente hasta que el equipo de Eclipse valide tu comprobante.
+                      Tu pago aparece como pendiente hasta que el equipo de {settings.companyName} valide tu comprobante.
                     </div>
                   ) : selected.status === 'Verified' ? (
                     <div className="flex items-start gap-2 rounded-xl border border-emerald-400/20 bg-emerald-400/[0.06] p-3 text-[11px] leading-5 text-emerald-100/80">

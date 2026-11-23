@@ -1,4 +1,4 @@
-import { ArrowUpRight, Mail, MessageCircle, ShieldCheck, Sparkles } from 'lucide-react'
+import { ArrowUpRight, Facebook, Instagram, Mail, MessageCircle, ShieldCheck, Sparkles, Youtube } from 'lucide-react'
 import { useStore } from '../context/StoreContext'
 import { buildWhatsAppLink } from '../lib/pricing'
 import { scrollToId } from '../lib/hooks'
@@ -6,17 +6,27 @@ import { Logo } from './Logo'
 
 const shopLinks = [
   { label: 'Catálogo', href: '#catalogo' },
-  { label: 'Combos', href: '#/combos' },
   { label: 'Noticias', href: '#/noticias' },
   { label: 'Quiénes somos', href: '#nosotros' },
   { label: 'FAQ', href: '#/faq' },
+]
+
+// Redes oficiales. Instagram se actualiza en cuanto nos pases el link.
+const socialLinks = [
+  { label: 'Facebook', href: 'https://www.facebook.com/profile.php?id=61591873076476', icon: Facebook },
+  { label: 'Instagram', href: 'https://www.instagram.com/eclipsetech', icon: Instagram },
+  {
+    label: 'YouTube',
+    href: 'https://youtube.com/@eclipsehelp?si=Y2tlTeDtsaLRNpXZ',
+    icon: Youtube,
+  },
 ]
 
 export function Footer() {
   const { settings } = useStore()
   const supportLink = buildWhatsAppLink(
     settings.whatsAppNumber,
-    'Hola Eclipse Tech, quiero información sobre sus licencias digitales.',
+    `Hola ${settings.companyName}, quiero información sobre sus licencias digitales.`,
   )
   const year = new Date().getFullYear()
 
@@ -31,7 +41,7 @@ export function Footer() {
             <div>
               <span className="eyebrow !border-white/15 !bg-white/[0.06]">
                 <Sparkles size={11} className="text-accent" />
-                Eclipse Tech
+                {settings.companyName}
               </span>
               <h2 className="mt-4 max-w-xl font-display text-2xl font-semibold leading-tight tracking-[-0.035em] text-white sm:text-4xl">
                 Tu próximo upgrade empieza hoy.
@@ -63,6 +73,21 @@ export function Footer() {
             <div className="mt-4 flex items-center gap-1.5 text-[9px] text-white/30">
               <ShieldCheck size={11} className="text-emerald-300/70" />
               Compra protegida y verificada
+            </div>
+            <div className="mt-4 flex items-center gap-2">
+              {socialLinks.map(({ label, href, icon: Icon }) => (
+                <a
+                  key={label}
+                  href={href}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={label}
+                  title={label}
+                  className="grid h-8 w-8 place-items-center rounded-lg border border-white/[0.1] bg-white/[0.04] text-white/45 transition hover:border-primary/40 hover:bg-primary/15 hover:text-white"
+                >
+                  <Icon size={14} />
+                </a>
+              ))}
             </div>
           </div>
 
@@ -136,7 +161,7 @@ export function Footer() {
         </div>
 
         <div className="flex flex-col gap-3 pt-5 text-[9px] text-white/25 sm:flex-row sm:items-center sm:justify-between">
-          <p>© {year} Eclipse Tech. Todos los derechos reservados.</p>
+          <p>© {year} {settings.companyName}. Todos los derechos reservados.</p>
           <div className="flex flex-wrap items-center gap-4">
             <span>Licencias digitales · techyuc.com</span>
             <span className="hidden h-3 w-px bg-white/10 sm:block" />

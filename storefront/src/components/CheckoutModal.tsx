@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import {
   AlertCircle,
   ArrowRight,
+  BadgePercent,
   CheckCircle2,
+  GraduationCap,
   Loader2,
   LockKeyhole,
   MessageCircle,
@@ -10,19 +12,25 @@ import {
   Paperclip,
   ShieldCheck,
   Sparkles,
+  Upload,
   X,
 } from 'lucide-react'
 import { useStore } from '../context/StoreContext'
+import { useCustomerAuth } from '../context/CustomerAuthContext'
 import { useToast } from '../context/ToastContext'
 import { api } from '../lib/api'
+import { openPaymentProof } from '../lib/events'
 import { useEscape } from '../lib/hooks'
-import { mirrorOrderToFirestore } from '../lib/firebaseOrders'
+import { mirrorOrderToRtdb } from '../lib/firebaseOrders'
 import { saveClientOrder } from '../lib/clientOrders'
+import { compressImageFile } from '../lib/images'
+import { uploadAdultVerification } from '../lib/storage'
 import {
   DURATION_LABELS,
   formatCurrency,
   formatDate,
   lineQuote,
+  round2,
 } from '../lib/pricing'
 import type {
   CreateOrderPayload,
@@ -49,6 +57,7 @@ export function CheckoutModal() {
     clearCart,
   } = useStore()
   const { toast } = useToast()
+  const { user, profile, studentDiscountPercent } = useCustomerAuth()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
@@ -56,6 +65,9 @@ export function CheckoutModal() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('BBVA')
   const [accepted, setAccepted] = useState(false)
   const [adultConsent, setAdultConsent] = useState(false)
+  const [adultDocument, setAdultDocument] = useState('')
+  const [adultSelfie, setAdultSelfie] = useState('')
+  const [adultUploading, setAdultUploading] = useState<'document' | 'selfie' | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [confirmation, setConfirmation] = useState<OrderConfirmation | null>(null)
@@ -65,12 +77,33 @@ export function CheckoutModal() {
     line.kind === 'product' ? line.product.isAdultOnly : line.products.some((product) => product.isAdultOnly),
   )
 
+  const studentDiscountAmount = round2((cartSubtotal * studentDiscountPercent) / 100)
+  const displayTotal = round2(Math.max(0, cartTotal - studentDiscountAmount))
+
+  const handleAdultFile = async (kind: 'document' | 'selfie', file: File | null) => {
+    if (!file) return
+    setError('')
+    setAdultUploading(kind)
+    try {
+      const dataUrl = await compressImageFile(file)
+      if (kind === 'document') setAdultDocument(dataUrl)
+      else setAdultSelfie(dataUrl)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'No pudimos procesar la imagen.')
+    } finally {
+      setAdultUploading(null)
+    }
+  }
+
   const close = () => {
     if (submitting) return
     closeCheckout()
     window.setTimeout(() => {
       setConfirmation(null)
       setError('')
+      setAdultDocument('')
+      setAdultSelfie('')
+      setAdultConsent(false)
     }, 200)
   }
 
@@ -81,6 +114,13 @@ export function CheckoutModal() {
       scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
     }
   }, [checkoutOpen, confirmation])
+
+  // Si la persona inició sesión, la tienda recuerda sus datos y su descuento.
+  useEffect(() => {
+    if (!checkoutOpen || !profile) return
+    setName((current) => current || profile.displayName || '')
+    setEmail((current) => current || profile.email || '')
+  }, [checkoutOpen, profile])
 
   if (!checkoutOpen) return null
 
@@ -108,6 +148,11 @@ export function CheckoutModal() {
       return
     }
 
+    if (adultInCart && !adultDocument) {
+      setError('Sube una foto de tu credencial (INE/pasaporte) para verificar tu mayoría de edad.')
+      return
+    }
+
     if (!accepted) {
       setError('Acepta los términos y la política de privacidad para continuar.')
       return
@@ -127,23 +172,47 @@ export function CheckoutModal() {
           },
     )
 
-    const payload: CreateOrderPayload = {
-      customerName: name.trim(),
-      customerEmail: email.trim() || undefined,
-      customerPhone: phone.trim() || undefined,
-      paymentMethod,
-      couponCode: coupon?.code,
-      adultConsent: adultInCart ? adultConsent : false,
-      notes: notes.trim() || undefined,
-      items,
-    }
-
     setSubmitting(true)
     try {
+      // Sube las fotos +18 a Storage; si no está disponible, se adjuntan
+      // comprimidas al pedido para que el admin igual pueda verificarlas.
+      let adultDocumentUrl = adultInCart && adultDocument ? adultDocument : undefined
+      let adultSelfieUrl = adultInCart && adultSelfie ? adultSelfie : undefined
+
+      if (adultDocumentUrl) {
+        try {
+          adultDocumentUrl = await uploadAdultVerification(adultDocument, 'document')
+        } catch {
+          // Respaldo local (dataURL comprimido).
+        }
+      }
+      if (adultSelfieUrl) {
+        try {
+          adultSelfieUrl = await uploadAdultVerification(adultSelfie, 'selfie')
+        } catch {
+          // Respaldo local (dataURL comprimido).
+        }
+      }
+
+      const payload: CreateOrderPayload = {
+        customerName: name.trim(),
+        customerEmail: email.trim() || profile?.email || undefined,
+        customerPhone: phone.trim() || undefined,
+        customerUid: user?.uid,
+        paymentMethod,
+        couponCode: coupon?.code,
+        adultConsent: adultInCart ? adultConsent : false,
+        adultDocumentUrl,
+        adultSelfieUrl,
+        notes: notes.trim() || undefined,
+        studentDiscountPercent: studentDiscountPercent || undefined,
+        items,
+      }
+
       const response = await api.createOrder(payload)
-      saveClientOrder(response)
-      // Refleja el pedido en Firestore para que aparezca en el panel (best-effort).
-      void mirrorOrderToFirestore(response, payload).catch(() => undefined)
+      saveClientOrder(response, user?.uid ?? user?.email ?? undefined)
+      // Refleja el pedido en RTDB para que aparezca en el panel (best-effort).
+      void mirrorOrderToRtdb(response, payload).catch(() => undefined)
       setConfirmation(response)
       clearCart()
       toast(`Pedido ${response.orderNumber} creado con éxito`, 'success')
@@ -317,6 +386,71 @@ export function CheckoutModal() {
                   </label>
                 )}
 
+                {adultInCart && (
+                  <div className="rounded-2xl border border-rose-400/20 bg-rose-500/[0.06] p-3.5">
+                    <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-rose-200/85">
+                      <ShieldCheck size={13} />
+                      Verificación +18 obligatoria
+                    </p>
+                    <p className="mt-1.5 text-[9px] leading-5 text-white/40">
+                      Sube una foto de tu credencial (INE o pasaporte). Solo se usa para verificar tu mayoría de
+                      edad; el equipo la revisa antes de entregar el acceso.
+                    </p>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      <label className="group relative flex cursor-pointer flex-col items-center justify-center gap-1.5 overflow-hidden rounded-xl border border-dashed border-white/15 bg-white/[0.03] p-2.5 text-center transition hover:border-rose-300/40 hover:bg-rose-500/[0.06]">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(event) =>
+                            void handleAdultFile('document', event.target.files?.[0] ?? null)
+                          }
+                        />
+                        {adultDocument ? (
+                          <img
+                            src={adultDocument}
+                            alt="Credencial adjunta"
+                            className="h-20 w-full rounded-lg object-cover"
+                          />
+                        ) : (
+                          <>
+                            <Upload size={15} className="text-rose-200/70" />
+                            <span className="text-[9px] font-semibold text-white/65">
+                              {adultUploading === 'document' ? 'Procesando…' : 'Foto de credencial *'}
+                            </span>
+                            <span className="text-[8px] text-white/30">JPG, PNG o WEBP</span>
+                          </>
+                        )}
+                      </label>
+                      <label className="group relative flex cursor-pointer flex-col items-center justify-center gap-1.5 overflow-hidden rounded-xl border border-dashed border-white/15 bg-white/[0.03] p-2.5 text-center transition hover:border-rose-300/40 hover:bg-rose-500/[0.06]">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(event) =>
+                            void handleAdultFile('selfie', event.target.files?.[0] ?? null)
+                          }
+                        />
+                        {adultSelfie ? (
+                          <img
+                            src={adultSelfie}
+                            alt="Selfie con credencial"
+                            className="h-20 w-full rounded-lg object-cover"
+                          />
+                        ) : (
+                          <>
+                            <Upload size={15} className="text-white/50" />
+                            <span className="text-[9px] font-semibold text-white/65">
+                              {adultUploading === 'selfie' ? 'Procesando…' : 'Selfie con credencial'}
+                            </span>
+                            <span className="text-[8px] text-white/30">Opcional, agiliza la revisión</span>
+                          </>
+                        )}
+                      </label>
+                    </div>
+                  </div>
+                )}
+
                 <label className="flex cursor-pointer items-start gap-2.5 text-[10px] leading-5 text-white/55">
                   <input
                     type="checkbox"
@@ -346,7 +480,7 @@ export function CheckoutModal() {
                   </>
                 ) : (
                   <>
-                    Confirmar pedido · {formatCurrency(cartTotal)}
+                    Confirmar pedido · {formatCurrency(displayTotal)}
                     <ArrowRight size={15} />
                   </>
                 )}
@@ -391,7 +525,7 @@ export function CheckoutModal() {
                   return (
                     <div key={line.id} className="flex items-center gap-2.5">
                       <span className="h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-white/[0.08] bg-white/5">
-                        <ProductImage src={image} alt={name} className="h-full w-full object-cover" />
+                        <ProductImage src={image} alt={name} className="h-full w-full p-1" />
                       </span>
                       <div className="min-w-0 flex-1">
                         <p className="line-clamp-1 text-[10px] font-medium text-white/75">{name}</p>
@@ -421,6 +555,19 @@ export function CheckoutModal() {
                     <span className="tabular">-{formatCurrency(couponAmount)}</span>
                   </div>
                 )}
+                {studentDiscountPercent > 0 && (
+                  <div className="flex justify-between text-emerald-300/90">
+                    <span className="flex items-center gap-1">
+                      <GraduationCap size={12} /> Estudiante {studentDiscountPercent}%
+                    </span>
+                    <span className="tabular">-{formatCurrency(studentDiscountAmount)}</span>
+                  </div>
+                )}
+                {profile?.isStudent && !profile.studentApproved && (
+                  <p className="flex items-center gap-1.5 rounded-lg bg-amber-400/[0.07] px-2 py-1.5 text-[9px] text-amber-200/80">
+                    <BadgePercent size={11} /> Credencial en revisión: el descuento se activará al aprobarla.
+                  </p>
+                )}
                 <div className="flex justify-between text-white/40">
                   <span>Envío digital</span>
                   <span className="text-emerald-300/80">Gratis</span>
@@ -428,7 +575,7 @@ export function CheckoutModal() {
                 <div className="flex items-end justify-between border-t border-white/[0.08] pt-3">
                   <span className="text-xs font-medium text-white/65">Total</span>
                   <span className="font-display text-xl font-bold text-white tabular">
-                    {formatCurrency(cartTotal)}
+                    {formatCurrency(displayTotal)}
                   </span>
                 </div>
               </div>
@@ -617,6 +764,22 @@ function ConfirmationView({
           <MessageCircle size={17} />
           Enviar comprobante por WhatsApp
         </a>
+
+        <button
+          type="button"
+          onClick={() =>
+            openPaymentProof({
+              orderNumber: confirmation.orderNumber,
+              total: confirmation.totalAmount,
+              whatsAppNumber: confirmation.settings.whatsAppNumber,
+              companyName: confirmation.settings.companyName,
+            })
+          }
+          className="mt-2 flex w-full items-center justify-center gap-2 rounded-full border border-white/12 px-5 py-3 text-xs font-semibold text-white/75 transition hover:border-white/25 hover:text-white"
+        >
+          <Paperclip size={14} />
+          Adjuntar PDF y escribir mi mensaje
+        </button>
 
         <div className="mt-4 rounded-2xl border border-white/[0.08] bg-white/[0.025] p-4">
           <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-white/35">

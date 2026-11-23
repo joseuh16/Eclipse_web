@@ -1,4 +1,5 @@
 import {
+  Database,
   ExternalLink,
   Globe,
   LayoutDashboard,
@@ -11,10 +12,13 @@ import {
   Settings,
   ShoppingBag,
   TicketPercent,
+  Users,
   X,
 } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { useAuth } from '../context/AuthContext'
+import { useBrand } from '../hooks/useBrand'
+import { useNavBadges } from '../hooks/useNavBadges'
 import { cn, initials } from '../lib/utils'
 import type { PageKey } from '../types'
 import { Logo } from './Logo'
@@ -28,6 +32,7 @@ const NAV_ITEMS: Array<{
 }> = [
   { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, hint: 'Resumen', group: 'Operación' },
   { key: 'orders', label: 'Órdenes', icon: ShoppingBag, hint: 'Ventas', group: 'Operación' },
+  { key: 'customers', label: 'Clientes', icon: Users, hint: 'Perfiles', group: 'Operación' },
   { key: 'products', label: 'Productos', icon: Package, hint: 'Catálogo', group: 'Catálogo' },
   { key: 'banners', label: 'Banners', icon: Megaphone, hint: 'Campañas', group: 'Catálogo' },
   { key: 'coupons', label: 'Cupones', icon: TicketPercent, hint: 'Descuentos', group: 'Catálogo' },
@@ -35,6 +40,7 @@ const NAV_ITEMS: Array<{
   { key: 'theme', label: 'Temas', icon: Palette, hint: 'Apariencia', group: 'Apariencia' },
   { key: 'content', label: 'Contenido', icon: Globe, hint: 'Imágenes y noticias', group: 'Apariencia' },
   { key: 'settings', label: 'Pagos y contacto', icon: Settings, hint: 'Configuración', group: 'Configuración' },
+  { key: 'database', label: 'Base de datos', icon: Database, hint: 'Nodos', group: 'Configuración' },
 ]
 
 const STORE_URL = import.meta.env.VITE_STORE_URL || 'https://eclipse.techyuc.com'
@@ -56,6 +62,8 @@ export function Layout({
   children: ReactNode
 }) {
   const { user, logout } = useAuth()
+  const { companyName, logoUrl } = useBrand()
+  const badges = useNavBadges()
   const [mobileOpen, setMobileOpen] = useState(false)
 
   useEffect(() => {
@@ -67,10 +75,10 @@ export function Layout({
   const sidebar = (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between px-5 py-5">
-        <Logo />
+        <Logo companyName={companyName} logoUrl={logoUrl} />
         <button
           type="button"
-          className="icon-btn lg:hidden"
+          className="icon-btn xl:hidden"
           onClick={() => setMobileOpen(false)}
           aria-label="Cerrar menú"
         >
@@ -88,6 +96,12 @@ export function Layout({
               {group.items.map((item) => {
                 const Icon = item.icon
                 const active = item.key === page
+                const badgeCount =
+                  item.key === 'orders'
+                    ? badges.pendingOrders
+                    : item.key === 'customers'
+                      ? badges.pendingCustomers
+                      : 0
                 return (
                   <li key={item.key}>
                     <button
@@ -112,6 +126,14 @@ export function Layout({
                         <Icon size={16} />
                       </span>
                       <span className="flex-1 font-medium">{item.label}</span>
+                      {badgeCount > 0 ? (
+                        <span
+                          className="grid min-w-[20px] place-items-center rounded-full border border-amber-400/30 bg-amber-400/15 px-1.5 py-0.5 text-[10px] font-bold leading-none text-amber-200"
+                          title={`${badgeCount} pendientes`}
+                        >
+                          {badgeCount}
+                        </span>
+                      ) : null}
                       <span className="text-[10px] uppercase tracking-[0.12em] text-white/25">
                         {item.hint}
                       </span>
@@ -157,32 +179,32 @@ export function Layout({
   )
 
   return (
-    <div className="min-h-screen lg:grid lg:grid-cols-[17rem_minmax(0,1fr)]">
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[17rem] border-r border-white/[0.07] bg-[#08080f]/80 backdrop-blur-2xl lg:block">
+    <div className="min-h-screen xl:grid xl:grid-cols-[17rem_minmax(0,1fr)]">
+      <aside className="safe-x safe-top safe-bottom fixed inset-y-0 left-0 z-40 hidden w-[17rem] border-r border-white/[0.07] bg-[#08080f]/80 backdrop-blur-2xl xl:block">
         {sidebar}
       </aside>
 
       {mobileOpen ? (
-        <div className="fixed inset-0 z-50 lg:hidden">
+        <div className="fixed inset-0 z-50 xl:hidden">
           <button
             type="button"
             aria-label="Cerrar menú"
             className="absolute inset-0 bg-black/70 backdrop-blur-sm"
             onClick={() => setMobileOpen(false)}
           />
-          <aside className="absolute inset-y-0 left-0 w-[18rem] animate-slide-in-right border-r border-white/[0.07] bg-[#08080f]">
+          <aside className="safe-x safe-top safe-bottom absolute inset-y-0 left-0 w-[18rem] animate-slide-in-left border-r border-white/[0.07] bg-[#08080f] shadow-[24px_0_70px_-30px_rgba(0,0,0,.9)]">
             {sidebar}
           </aside>
         </div>
       ) : null}
 
-      <div className="lg:col-start-2">
-        <header className="sticky top-0 z-30 border-b border-white/[0.07] bg-[#06060d]/80 backdrop-blur-2xl">
-          <div className="flex items-center justify-between gap-3 px-4 py-3.5 sm:px-6 lg:px-8">
+      <div className="min-w-0 xl:col-start-2">
+        <header className="safe-x safe-top sticky top-0 z-30 border-b border-white/[0.07] bg-[#06060d]/80 backdrop-blur-2xl">
+          <div className="flex items-center justify-between gap-3 px-4 py-3.5 sm:px-6 xl:px-8">
             <div className="flex min-w-0 items-center gap-3">
               <button
                 type="button"
-                className="icon-btn lg:hidden"
+                className="icon-btn xl:hidden"
                 onClick={() => setMobileOpen(true)}
                 aria-label="Abrir menú"
               >
@@ -193,7 +215,7 @@ export function Layout({
                   Panel / {current.label}
                 </p>
                 <p className="truncate font-display text-sm font-semibold text-white">
-                  {current.hint} de Eclipse Tech
+                  {current.hint} de {companyName}
                 </p>
               </div>
             </div>
@@ -209,7 +231,11 @@ export function Layout({
           </div>
         </header>
 
-        <main className="px-4 py-6 sm:px-6 lg:px-8 lg:py-8">{children}</main>
+        <div className="safe-x safe-bottom">
+          <main className="mx-auto w-full max-w-[1600px] px-4 pb-10 pt-8 sm:px-6 sm:pt-10 xl:px-10 xl:pb-12 xl:pt-12">
+            {children}
+          </main>
+        </div>
       </div>
     </div>
   )

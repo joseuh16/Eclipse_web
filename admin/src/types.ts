@@ -21,6 +21,8 @@ export type PageKey =
   | 'banners'
   | 'settings'
   | 'content'
+  | 'customers'
+  | 'database'
 
 
 export const CATEGORIES: Category[] = [
@@ -66,6 +68,9 @@ export const SEASON_LABELS: Record<string, string> = {
   mothers: 'Día de la Madre',
   children: 'Día del Niño',
   fathers: 'Día del Padre',
+  diademuertos: 'Día de Muertos',
+  grito: 'Día del Grito',
+  amor: 'Amor y Amistad',
 }
 
 export interface AdminUser {
@@ -203,6 +208,9 @@ export interface ComboInput {
 
 export interface PaymentSettings {
   id: number
+  companyName: string
+  logoUrl: string
+  studentDiscountPercent: number
   bankName: string
   beneficiary: string
   clabeNumber: string
@@ -215,6 +223,21 @@ export interface PaymentSettings {
 }
 
 export type PaymentSettingsInput = Omit<PaymentSettings, 'id' | 'updatedAt'>
+
+/** Perfil de un cliente registrado en la tienda (RTDB: usuarios_clientes). */
+export interface CustomerProfile {
+  uid: string
+  email: string
+  displayName: string
+  isStudent: boolean
+  studentApproved: boolean
+  studentCredentialUrl: string
+  createdAt: string
+  updatedAt: string
+}
+
+/** @deprecated Usa CustomerProfile. Se conserva por compatibilidad. */
+export type StudentProfile = CustomerProfile
 
 export interface SiteContent {
   id: number
@@ -261,12 +284,29 @@ export interface OrderItemSnapshot {
   isAdultOnly: boolean
 }
 
+export interface AdultVerification {
+  documentUrl: string | null
+  selfieUrl: string | null
+  verified: boolean
+  verifiedAt: string | null
+}
+
+/** Cuenta entregada al cliente tras la verificación del pedido. */
+export interface DeliveredAccount {
+  email: string
+  password: string
+  validFrom: string
+  validTo: string
+  platform?: string
+}
+
 export interface Order {
   id: number
   orderNumber: string
   customerName: string
   customerEmail: string | null
   customerPhone: string | null
+  customerUid?: string | null
   subtotal: number
   discountAmount: number
   totalAmount: number
@@ -275,6 +315,10 @@ export interface Order {
   couponCode: string | null
   notes: string | null
   items: OrderItemSnapshot[]
+  adultVerification?: AdultVerification | null
+  deliveredAccounts?: DeliveredAccount[]
+  deliveredAt?: string
+  deliveryEmailSent?: boolean
   createdAt: string
   verifiedAt: string | null
 }

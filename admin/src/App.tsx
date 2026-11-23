@@ -5,7 +5,9 @@ import { BannersPage } from './pages/BannersPage'
 import { CombosPage } from './pages/CombosPage'
 import { ContentPage } from './pages/ContentPage'
 import { CouponsPage } from './pages/CouponsPage'
+import { CustomersPage } from './pages/CustomersPage'
 import { DashboardPage } from './pages/DashboardPage'
+import { DatabasePage } from './pages/DatabasePage'
 import { OrdersPage } from './pages/OrdersPage'
 import { ProductsPage } from './pages/ProductsPage'
 import { SettingsPage } from './pages/SettingsPage'
@@ -22,6 +24,8 @@ const PAGES: PageKey[] = [
   'banners',
   'settings',
   'content',
+  'customers',
+  'database',
 ]
 
 function currentRoute(): string {
@@ -29,8 +33,10 @@ function currentRoute(): string {
 }
 
 function readPage(): PageKey {
-  const hash = currentRoute() as PageKey
-  return PAGES.includes(hash) ? hash : 'dashboard'
+  const hash = currentRoute()
+  // Bookmarks antiguos a #/students siguen llevando a Clientes.
+  if (hash === 'students') return 'customers'
+  return PAGES.includes(hash as PageKey) ? (hash as PageKey) : 'dashboard'
 }
 
 function PanelApp() {
@@ -59,6 +65,8 @@ function PanelApp() {
       {page === 'banners' ? <BannersPage /> : null}
       {page === 'settings' ? <SettingsPage /> : null}
       {page === 'content' ? <ContentPage /> : null}
+      {page === 'customers' ? <CustomersPage /> : null}
+      {page === 'database' ? <DatabasePage /> : null}
     </Layout>
   )
 }

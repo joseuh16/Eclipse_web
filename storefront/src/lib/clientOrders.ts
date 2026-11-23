@@ -1,10 +1,15 @@
 import type { OrderConfirmation } from '../types'
 
-const KEY = 'eclipse_client_orders_v1'
+const BASE_KEY = 'eclipse_client_orders_v1'
 
 export interface StoredOrder extends OrderConfirmation {
   status: 'Pending' | 'Verified' | 'Cancelled'
   paymentDueAt: string
+}
+
+/** Cada cuenta de cliente tiene su propio historial en el navegador. */
+function keyFor(ownerKey?: string): string {
+  return ownerKey ? `${BASE_KEY}_${ownerKey}` : BASE_KEY
 }
 
 function computeDueAt(createdAt: string): string {
@@ -14,9 +19,24 @@ function computeDueAt(createdAt: string): string {
   return d.toISOString()
 }
 
-export function readClientOrders(): StoredOrder[] {
+/** Migra el historial antiguo (sin cuenta) al primer usuario que inicia sesión. */
+function migrateLegacy(ownerKey?: string): string | null {
+  if (!ownerKey) return null
+  const legacy = window.localStorage.getItem(BASE_KEY)
+  if (!legacy) return null
+  const target = keyFor(ownerKey)
+  if (!window.localStorage.getItem(target)) {
+    window.localStorage.setItem(target, legacy)
+  }
+  window.localStorage.removeItem(BASE_KEY)
+  return legacy
+}
+
+export function readClientOrders(ownerKey?: string): StoredOrder[] {
   try {
-    const raw = window.localStorage.getItem(KEY)
+    const key = keyFor(ownerKey)
+    let raw = window.localStorage.getItem(key)
+    if (!raw) raw = migrateLegacy(ownerKey)
     if (!raw) return []
     const parsed = JSON.parse(raw) as StoredOrder[]
     if (!Array.isArray(parsed)) return []
@@ -26,25 +46,25 @@ export function readClientOrders(): StoredOrder[] {
   }
 }
 
-export function saveClientOrder(order: OrderConfirmation): StoredOrder {
+export function saveClientOrder(order: OrderConfirmation, ownerKey?: string): StoredOrder {
   const stored: StoredOrder = {
     ...order,
     status: 'Pending',
     paymentDueAt: computeDueAt(order.createdAt),
   }
-  const current = readClientOrders().filter((o) => o.orderId !== stored.orderId)
+  const current = readClientOrders(ownerKey).filter((o) => o.orderId !== stored.orderId)
   const next = [stored, ...current].slice(0, 50)
   try {
-    window.localStorage.setItem(KEY, JSON.stringify(next))
+    window.localStorage.setItem(keyFor(ownerKey), JSON.stringify(next))
   } catch {
     // ignore
   }
   return stored
 }
 
-export function clearClientOrders() {
+export function clearClientOrders(ownerKey?: string) {
   try {
-    window.localStorage.removeItem(KEY)
+    window.localStorage.removeItem(keyFor(ownerKey))
   } catch {
     // ignore
   }

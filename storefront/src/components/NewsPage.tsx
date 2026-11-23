@@ -103,7 +103,7 @@ export function NewsPage({ slug }: { slug?: string }) {
           ← Volver a noticias
         </a>
         <div className="mt-6 grid gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-start">
-          <div className="overflow-hidden rounded-3xl border border-white/10">
+          <div className="aspect-[16/10] overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03]">
             <img
               src={selected.image}
               alt={selected.title}

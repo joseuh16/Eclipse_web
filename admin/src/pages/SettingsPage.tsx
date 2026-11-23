@@ -1,22 +1,29 @@
 import {
   Building2,
   CreditCard,
+  Image as ImageIcon,
   Mail,
   MessageCircle,
+  Percent,
   Save,
   ShieldCheck,
   StickyNote,
   Store,
+  Trash2,
   Wallet,
 } from 'lucide-react'
-import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react'
 import { FormError, PageHeader, Spinner } from '../components/ui'
 import { useToast } from '../context/ToastContext'
 import { api } from '../lib/api'
+import { uploadImage } from '../lib/upload'
 import { formatDate } from '../lib/utils'
 import type { PaymentSettings, PaymentSettingsInput } from '../types'
 
 const EMPTY_FORM: PaymentSettingsInput = {
+  companyName: '',
+  logoUrl: '',
+  studentDiscountPercent: 0,
   bankName: '',
   beneficiary: '',
   clabeNumber: '',
@@ -70,6 +77,9 @@ export function SettingsPage() {
       const data = await api.settings.get()
       setSettings(data)
       setForm({
+        companyName: data.companyName,
+        logoUrl: data.logoUrl,
+        studentDiscountPercent: data.studentDiscountPercent,
         bankName: data.bankName,
         beneficiary: data.beneficiary,
         clabeNumber: data.clabeNumber,
@@ -94,11 +104,39 @@ export function SettingsPage() {
     setForm((current) => ({ ...current, [key]: value }))
   }
 
+  const handleLogoFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    try {
+      const url = await uploadImage(file, 'site')
+      update('logoUrl', url)
+      toast('Logo subido. Guarda la configuración para aplicarlo.')
+    } catch (caught) {
+      toast(caught instanceof Error ? caught.message : 'No se pudo subir el logo.', 'error')
+    } finally {
+      event.target.value = ''
+    }
+  }
+
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
     setFormError(null)
 
-    const required: Array<[keyof PaymentSettingsInput, string, number, number]> = [
+    if (!form.companyName.trim()) {
+      setFormError('El nombre de la empresa es obligatorio.')
+      return
+    }
+    if (
+      !Number.isFinite(form.studentDiscountPercent) ||
+      form.studentDiscountPercent < 0 ||
+      form.studentDiscountPercent > 100
+    ) {
+      setFormError('El descuento de estudiante debe estar entre 0% y 100%.')
+      return
+    }
+
+    type TextSettingKey = Exclude<keyof PaymentSettingsInput, 'studentDiscountPercent'>
+    const required: Array<[TextSettingKey, string, number, number]> = [
       ['bankName', 'Banco', 2, 80],
       ['beneficiary', 'Beneficiario', 2, 160],
       ['clabeNumber', 'CLABE BBVA', 8, 30],
@@ -126,6 +164,9 @@ export function SettingsPage() {
     setSaving(true)
     try {
       const updated = await api.settings.update({
+        companyName: form.companyName.trim(),
+        logoUrl: form.logoUrl.trim(),
+        studentDiscountPercent: form.studentDiscountPercent,
         bankName: form.bankName.trim(),
         beneficiary: form.beneficiary.trim(),
         clabeNumber: form.clabeNumber.trim(),
@@ -178,6 +219,99 @@ export function SettingsPage() {
           <FormError message={formError} />
 
           <div className="grid gap-4 xl:grid-cols-2">
+            <Section
+              icon={<Store size={17} />}
+              title="Marca y descuento estudiantil"
+              description="Nombre, logo y porcentaje que la tienda aplica a los estudiantes aprobados."
+            >
+              <div>
+                <label htmlFor="settings-company" className="field-label">
+                  Nombre de la empresa
+                </label>
+                <input
+                  id="settings-company"
+                  className="field"
+                  value={form.companyName}
+                  onChange={(event) => update('companyName', event.target.value)}
+                  placeholder="Eclipse Tech"
+                  required
+                  maxLength={80}
+                />
+              </div>
+              <div>
+                <span className="field-label">Logo de la empresa</span>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <label className="field relative block cursor-pointer overflow-hidden p-0 sm:w-40">
+                    <span className="flex h-24 items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-white/[0.03]">
+                      {form.logoUrl ? (
+                        <img
+                          src={form.logoUrl}
+                          alt="Logo de la empresa"
+                          className="h-full w-full object-contain p-2"
+                        />
+                      ) : (
+                        <ImageIcon size={24} className="text-white/30" />
+                      )}
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="sr-only"
+                      onChange={(event) => void handleLogoFile(event)}
+                      aria-label="Subir logo de la empresa"
+                    />
+                    <span className="absolute bottom-0 left-0 right-0 bg-black/55 px-3 py-1.5 text-center text-[10px] font-semibold uppercase tracking-[0.12em] text-white/80">
+                      Subir logo
+                    </span>
+                  </label>
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <input
+                      type="url"
+                      className="field"
+                      value={form.logoUrl}
+                      onChange={(event) => update('logoUrl', event.target.value)}
+                      placeholder="https://… o sube una imagen"
+                    />
+                    {form.logoUrl ? (
+                      <button
+                        type="button"
+                        className="btn-secondary px-3 py-2 text-xs"
+                        onClick={() => update('logoUrl', '')}
+                      >
+                        <Trash2 size={13} />
+                        Quitar logo
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+              <div>
+                <label htmlFor="settings-student-discount" className="field-label">
+                  Descuento de estudiantes (%)
+                </label>
+                <div className="relative">
+                  <Percent
+                    size={15}
+                    className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30"
+                  />
+                  <input
+                    id="settings-student-discount"
+                    type="number"
+                    min={0}
+                    max={100}
+                    step={1}
+                    className="field pl-10"
+                    value={form.studentDiscountPercent}
+                    onChange={(event) => update('studentDiscountPercent', Number(event.target.value))}
+                    required
+                  />
+                </div>
+                <p className="mt-1.5 text-[11px] text-white/30">
+                  Se aplica en la tienda a los perfiles verificados como estudiantes.
+                </p>
+              </div>
+            </Section>
+
             <Section
               icon={<Building2 size={17} />}
               title="Transferencia BBVA"

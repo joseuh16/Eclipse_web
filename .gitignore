@@ -7,6 +7,11 @@ dist/
 .env.*
 !.env.example
 
+# Firebase Auth export / migración de clientes (contiene datos sensibles)
+auth-users.json
+clientes-actuales.json
+clientes-para-subir.json
+
 # .NET build output
 bin/
 obj/

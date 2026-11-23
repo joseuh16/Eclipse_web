@@ -1,191 +1,158 @@
-<<<<<<< HEAD
 # Eclipse Tech
 
-Tienda de licencias digitales y streaming con backend propio, storefront público y panel administrativo privado. Todo el stack está contenedorizado y listo para desplegar en Docker o Coolify.
+Tienda de licencias digitales (streaming, IA, productividad) con **Firebase
+Realtime Database**, **Firebase Authentication** y **Firebase Storage**.
+Sin Docker, sin MySQL y sin API .NET para operar.
 
-| Servicio | Tecnología | Dominio previsto |
+| App | URL local | Build |
 | --- | --- | --- |
-| `backend-api` | .NET 9 · ASP.NET Core · EF Core · MySQL | interno (`:8080`) |
-| `frontend-store` | React 18 · Vite · Tailwind · Nginx | `eclipse.techyuc.com` |
-| `frontend-admin` | React 18 · Vite · Tailwind · Nginx | `panel-eclipse.techyuc.com` |
-| `mysql` | MySQL 8.0 | interno (`:3306`) |
+| Tienda | <http://localhost:5173> | `storefront/dist` |
+| Panel admin | <http://localhost:5174> | `admin/dist` |
 
 ## Funcionalidad
 
-### Storefront
-- Tema de temporada dinámico (`base`, `autumn`, `halloween`, `christmas`, `reyes`) con colores y CSS personalizados.
-- Header con barra de anuncios, búsqueda predictiva y contador animado del carrito.
-- Carrusel de banners, riel de destacados y catálogo con filtros por categoría.
-- Categoría `+18` protegida con modal de verificación de edad.
-- Constructor de combos con descuento progresivo (2, 3 y 4+ perfiles).
-- Compra rápida, carrito lateral y checkout con cupones.
-- Pagos por BBVA, Mercado Pago y OXXO con copiado en un clic.
-- Confirmación de pedido con enlace prellenado a WhatsApp.
+### Tienda
+- Catálogo desde RTDB (`catalogo`) con categorías, búsqueda, filtros y orden.
+- Banners y promociones desde `promociones`.
+- Tema de temporada activo desde `themes` (se refresca al volver a la pestaña).
+- Combos con descuento progresivo, cupones y compra rápida.
+- Carrito lateral y checkout con BBVA/SPEI, Mercado Pago y OXXO.
+- Confirmación de pedido + espejo a RTDB `orders`.
+- Sección `+18` con aviso de verificación: el checkout pide foto de credencial
+  (INE/pasaporte) y selfie opcional.
+- Cuenta del cliente en el navegador (`#/cuenta`), noticias y FAQ.
+- Iconos de Facebook, Instagram y YouTube en el footer.
+- Asistente flotante (chat) con respuestas de compra, pagos, pedidos, +18 y
+  acceso directo a WhatsApp.
 
 ### Panel administrativo
-- Login JWT con rol `Admin` y sesión persistente opcional.
-- Dashboard con ventas pendientes, productos activos, órdenes de hoy, ingresos y actividad de 7 días.
-- CRUD de productos con activar/desactivar, destacados y restricción `+18`.
-- Motor de temas con presets de un clic, selector de color, tipografía, CSS propio y vista previa.
-- Gestión de cupones, niveles de combo y banners con vigencia y orden.
-- Órdenes con filtros, búsqueda, paginación, detalle y cambio de estado.
-- Configuración de datos bancarios, WhatsApp y soporte.
+- Login aislado con Firebase Auth (correos autorizados).
+- Dashboard calculado 100% sobre RTDB (caché de 15 s y escrituras que invalidan
+  la caché para ver cambios al instante).
+- CRUD de productos, banners, combos y cupones.
+- Temas: 8 presets de temporada + editor de colores/tipografía/CSS. Al aplicar,
+  guarda `themes/<clave>` con `isActive: true` para la tienda.
+- Órdenes: filtros por estado, búsqueda, detalle y cambio de estado.
+- **Apartado +18 en Órdenes**: filtro `+18`, insignias, visor de credencial y
+  selfie, y botón **Verificar +18**.
+- Configuración de pagos/WhatsApp/soporte y contenido (hero + noticias).
+- Subida de imágenes a Firebase Storage.
 
 ## Estructura
 
 ```text
 Eclipse/
-├── backend/Eclipse.Api/     # API .NET 9
-├── storefront/              # React storefront (Vite)
-├── admin/                   # React admin CMS (Vite)
-├── docs/                    # Despliegue y referencia de API
-├── scripts/dev.mjs          # Arranque conjunto en desarrollo
-├── docker-compose.yml       # MySQL local (puerto 3307)
-└── .env.example
+├── storefront/            # React 18 + Vite + Tailwind (tienda)
+├── admin/                 # React 18 + Vite + Tailwind (panel)
+├── database.rules.json    # Reglas de Realtime Database (publicar)
+├── storage.rules          # Reglas de Storage (publicar)
+├── firebase.json          # Configuración CLI de Firebase
+├── DEPLOY_HOSTINGER.md    # Guía de despliegue en Hostinger
+├── scripts/dev.mjs        # Arranque conjunto en desarrollo
+└── backend/               # API .NET heredada (opcional, en desuso)
 ```
 
-## Inicio rápido con Firebase
-
-1. Crea un proyecto en [Firebase Console](https://console.firebase.google.com) y activa **Firestore** y **Authentication**.
-2. Copia `.env.example` a `.env` y completa las variables `VITE_FIREBASE_*` con los datos de tu app web.
-3. Instala dependencias:
-   ```bash
-   npm run install:all
-   ```
-4. Arranca el desarrollo:
-   ```bash
-   npm run dev:all
-   ```
-   - Tienda: <http://localhost:5173>
-   - Panel: <http://localhost:5174>
-   - API: <http://localhost:8090>
-
-> La tienda y el panel usan la API .NET en `:8090`, que a su vez usa MySQL en
-> `127.0.0.1:3307`. Los servicios de Firestore (`storefront/src/services/firestore.ts`
-> y `admin/src/lib/firebase.ts`) están preparados pero todavía no están conectados
-> al panel ni a la tienda.
-
-## Desarrollo local
-
-Requisitos: .NET 9 SDK, Node 20+, MySQL 8 (o Docker).
-
-### Todo en uno
+## Inicio rápido
 
 ```bash
-docker compose up -d mysql      # en .env usa MYSQL_PASSWORD=eclipse_dev_password
-npm run install:all             # solo la primera vez
-npm run dev:all                 # API + storefront + panel
+npm run install:all
+npm run dev:all
 ```
 
-| Servicio | URL |
-| --- | --- |
-| Storefront | <http://localhost:5173> |
-| Panel | <http://localhost:5174> |
-| API | <http://localhost:8090> · Swagger en <http://localhost:8090/swagger> |
+- Tienda: <http://localhost:5173>
+- Panel: <http://localhost:5174>
 
-`Ctrl+C` detiene los tres procesos. Si solo necesitas los frontends usa `npm run dev:apps`; también existen `dev:api`, `dev:store` y `dev:admin`.
+### Login del panel
 
-Al arrancar, `npm run dev` libera automáticamente instancias previas del propio
-proyecto que se hayan quedado ocupando los puertos 5173, 5174 o 8090. Si el
-puerto lo ocupa otro programa, se muestra un aviso y no se toca ese proceso.
-
-### Acceso al panel
-
-Abre <http://localhost:5174> e inicia sesión con las credenciales configuradas
-en `.env` / `appsettings.json`:
-
-| Campo | Valor por defecto |
+| Campo | Valor |
 | --- | --- |
 | Usuario | `admin` |
 | Contraseña | `Eclipse2026!` |
 
-`ADMIN_USERNAME` y `ADMIN_PASSWORD` (o `Seed__AdminUsername` y
-`Seed__AdminPassword`) son la fuente de verdad: al reiniciar la API, el usuario
-administrador se crea si no existe o se actualiza si la contraseña configurada
-ya no coincide con la guardada en la base de datos. Cambia el valor por defecto
-antes de publicar el sitio.
+El usuario corto se traduce a `admin@eclipse.tech`. También pueden entrar
+`jjaimej7@gmail.com` y `marisolestradaaguir@gmail.com` (las reglas de RTDB y
+Storage usan esa lista).
 
-### Por separado
+## Configuración de Firebase (obligatoria)
+
+Proyecto: **my-admin-f0d0f**.
+
+1. **Authentication → Email/Password**: habilitado.
+2. **Realtime Database → Reglas**: pega el contenido de
+   [`database.rules.json`](database.rules.json) y publica.
+   - Es la versión **combinada**: conserva las reglas anteriores y agrega los
+     nodos de Eclipse Tech. La versión limpia queda en
+     [`database.rules.clean.json`](database.rules.clean.json) para cuando retires
+     la app vieja.
+   - Lectura pública: catálogo, promociones, combos, temas, settings, cupones y
+     contenido.
+   - `orders`: el cliente anónimo puede **crear** un pedido nuevo; leer y
+     editar solo administradores.
+   - Resto de nodos: solo administradores.
+3. **Storage → Get started → Reglas**: pega el contenido de
+   [`storage.rules`](storage.rules) y publica.
+   - Imágenes públicas y escritura solo para administradores.
+   - `verifications/*`: el checkout anónimo puede subir fotos +18 (máx. 3 MB).
+4. **Authentication → Authorized domains**: agrega el dominio de la tienda y el
+   del panel cuando los tengas.
+
+> **Importante:** sin publicar las reglas de RTDB, Firebase rechaza todas las
+> escrituras (temas, productos, banners, pedidos). El panel muestra el error
+> "permiso denegado" con esta indicación.
+
+También puedes publicarlas con la CLI:
 
 ```bash
-# 1. Base de datos (en .env usa MYSQL_PASSWORD=eclipse_dev_password)
-docker compose up -d mysql
-
-# 2. API
-cd backend/Eclipse.Api
-dotnet run
-# http://localhost:8090 · Swagger en /swagger
-
-# 3. Storefront (otra terminal)
-cd storefront
-npm install
-npm run dev
-# http://localhost:5173
-
-# 4. Admin (otra terminal)
-cd admin
-npm install
-npm run dev
-# http://localhost:5174
+npm i -g firebase-tools
+firebase login   # con la cuenta dueña del proyecto my-admin-f0d0f
+npm run deploy:rules
+npm run deploy:storage
 ```
 
-Vite proxya `/api` hacia `http://localhost:8090` en desarrollo. Para apuntar a otra API usa `VITE_DEV_API_PROXY` o `VITE_API_URL`. Si usas un MySQL local en `:3306`, sobrescribe la cadena con la variable `ConnectionStrings__DefaultConnection`.
+**Atajo sin consola:** doble clic en `PUBLICAR_REGLAS.cmd` (copia las reglas y
+abre la página exacta) y luego en `PUBLICAR_REGLAS_STORAGE.cmd`. Verifica con:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\verificar-reglas.ps1
+```
 
 ## Scripts útiles
 
 | Directorio | Comando | Descripción |
 | --- | --- | --- |
-| raíz | `npm run install:all` | Instala dependencias de storefront y admin |
-| raíz | `npm run dev:all` | API + storefront + panel en una terminal |
-| raíz | `npm run dev:apps` | Solo storefront y panel |
-| raíz | `npm run build` | Build de producción de ambos frontends |
-| `backend/Eclipse.Api` | `dotnet build` | Compila la API (opcional) |
-| `backend/Eclipse.Api` | `dotnet run` | Inicia la API en `:8090` (opcional) |
-| `storefront` | `npm run build` | Type-check + build de producción |
-| `admin` | `npm run build` | Type-check + build de producción |
+| raíz | `npm run install:all` | Instala dependencias de tienda y panel |
+| raíz | `npm run dev:all` | Tienda + panel en una terminal |
+| raíz | `npm run dev:store` | Solo tienda |
+| raíz | `npm run dev:admin` | Solo panel |
+| raíz | `npm run build` | Build de producción de ambas apps |
+| raíz | `npm run deploy:rules` | Publica reglas de RTDB y Storage |
+| `storefront` | `npm run build` | Type-check + build de la tienda |
+| `admin` | `npm run build` | Type-check + build del panel |
 
-## Problemas frecuentes
+## Despliegue
 
-**«Usuario o contraseña incorrectos» en el panel**
+Sigue **[DEPLOY_HOSTINGER.md](DEPLOY_HOSTINGER.md)**. Resumen:
 
-1. Confirma las credenciales de la tabla de acceso (`admin` / `Eclipse2026!`).
-2. Si cambiaste `ADMIN_PASSWORD`, reinicia la API para que se aplique.
-3. Verifica que MySQL esté arriba y con datos: <http://localhost:8090/api/health>
-   debe responder `{"status":"ok","database":"up"}`.
+1. `npm run build`.
+2. Sube `storefront/dist` al dominio principal.
+3. Sube `admin/dist` al subdominio del panel (recomendado).
+4. Publica reglas de Firebase, activa SSL y prueba el checklist.
 
-**«No pudimos conectar con el servidor»**
+Las dos apps usan rutas con hash (`#/cuenta`, `#/orders`), así que funcionan en
+hosting estático sin rewrites especiales. Cada `dist` incluye `.htaccess` con
+fallback, caché y compresión.
 
-- La API no está escuchando en `:8090`. Ejecuta `npm run dev:api` o revisa la
-  consola de `npm run dev:all`.
-- Si el puerto estaba ocupado, la nueva instancia no arrancó; vuelve a lanzar
-  `npm run dev` (libera instancias previas del proyecto automáticamente).
-- Comprueba la base de datos: `docker compose up -d mysql` y
-  `docker compose ps`.
+## Seguridad
 
-**La API no conecta con MySQL**
+- La configuración web de Firebase es pública por diseño; no coloques llaves de
+  servicio en el frontend.
+- Las reglas limitan escrituras a los correos administradores.
+- Las fotos +18 se guardan en `verifications/` (URL no listada) o, si Storage
+  no está disponible, comprimidas dentro del pedido.
+- Los pagos se validan manualmente; no se almacenan datos de tarjetas.
 
-En desarrollo la cadena apunta a `127.0.0.1:3307`. Ese es el puerto que expone
-`docker-compose.yml`. Si usas otro puerto, define
-`ConnectionStrings__DefaultConnection` antes de `dotnet run`, por ejemplo:
+## Documentación heredada
 
-```bash
-# PowerShell
-$env:ConnectionStrings__DefaultConnection="Server=localhost;Port=3306;Database=eclipse;User=root;Password=tu_password;"
-dotnet run --project backend/Eclipse.Api
-```
-
-## Documentación
-
-- [Guía de despliegue](docs/DEPLOYMENT.md)
-- [Referencia de la API](docs/API.md)
-
-## Notas de seguridad
-
-- `JWT_KEY` debe tener al menos 32 caracteres; la API no arranca sin él.
-- Cambia las contraseñas de MySQL y del administrador antes de exponer el sitio.
-- Swagger está deshabilitado por defecto en producción (`SWAGGER_ENABLED=false`).
-- El panel administrativo envía `X-Robots-Tag: noindex` y su `robots.txt` bloquea indexación.
-- Los pagos se validan manualmente desde el panel; no se almacenan datos de tarjetas.
-=======
-# Eclipse_web
->>>>>>> 5364e4fc0593ac0991c3aeca3784075a4e22a633
+- `FIRESTORE_SETUP.md` — notas de la etapa anterior (Firestore).
+- `docs/` y `backend/` — API .NET/MySQL en desuso; no son necesarias para
+  operar la tienda ni el panel.

@@ -11,6 +11,7 @@ interface ProductImageProps {
 
 export function ProductImage({ src, alt, className, eager = false }: ProductImageProps) {
   const [failed, setFailed] = useState(!src)
+  const hasFit = Boolean(className?.includes('object-'))
 
   if (failed) {
     return (
@@ -34,7 +35,7 @@ export function ProductImage({ src, alt, className, eager = false }: ProductImag
     <img
       src={src}
       alt={alt}
-      className={className}
+      className={cn('h-full w-full', !hasFit && 'object-contain', className)}
       loading={eager ? 'eager' : 'lazy'}
       decoding="async"
       onError={() => setFailed(true)}

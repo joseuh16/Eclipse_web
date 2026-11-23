@@ -1,19 +1,25 @@
 import {
+  BadgeCheck,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  ExternalLink,
   Eye,
   Mail,
   MessageCircle,
   Package,
   Phone,
+  Plus,
   RotateCcw,
   Search,
+  ShieldCheck,
   ShoppingBag,
+  Trash2,
   XCircle,
 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import {
+  Badge,
   EmptyState,
   FormError,
   Modal,
@@ -23,12 +29,15 @@ import {
   StatusBadge,
 } from '../components/ui'
 import { useToast } from '../context/ToastContext'
+import { useBrand } from '../hooks/useBrand'
 import { api } from '../lib/api'
+import { buildDeliveryMailto } from '../lib/deliveryMail'
 import { useDebounce } from '../lib/hooks'
 import { cn, formatCurrency, formatDate } from '../lib/utils'
 import {
   ORDER_STATUS_LABELS,
   PAYMENT_METHOD_LABELS,
+  type DeliveredAccount,
   type Order,
   type OrderStatus,
 } from '../types'
@@ -42,13 +51,23 @@ const STATUS_TABS: Array<{ key: OrderStatus | 'all'; label: string }> = [
 
 const PAGE_SIZE = 12
 
+function hasAdultItems(order: Order): boolean {
+  return Boolean(order.adultVerification) || order.items.some((item) => item.isAdultOnly)
+}
+
+function emptyAccount(): DeliveredAccount {
+  return { email: '', password: '', validFrom: '', validTo: '', platform: '' }
+}
+
 export function OrdersPage() {
   const { toast } = useToast()
+  const { companyName } = useBrand()
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [status, setStatus] = useState<OrderStatus | 'all'>('all')
   const [search, setSearch] = useState('')
+  const [adultOnly, setAdultOnly] = useState(false)
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [total, setTotal] = useState(0)
@@ -56,6 +75,9 @@ export function OrdersPage() {
 
   const [detail, setDetail] = useState<Order | null>(null)
   const [statusBusy, setStatusBusy] = useState<OrderStatus | null>(null)
+  const [adultBusy, setAdultBusy] = useState(false)
+  const [deliveryAccounts, setDeliveryAccounts] = useState<DeliveredAccount[]>([emptyAccount()])
+  const [deliveryBusy, setDeliveryBusy] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -64,6 +86,7 @@ export function OrdersPage() {
       const result = await api.orders.list({
         status: status === 'all' ? undefined : status,
         search: debouncedSearch.trim() || undefined,
+        adultOnly,
         page,
         pageSize: PAGE_SIZE,
       })
@@ -75,7 +98,7 @@ export function OrdersPage() {
     } finally {
       setLoading(false)
     }
-  }, [status, debouncedSearch, page])
+  }, [status, debouncedSearch, adultOnly, page])
 
   useEffect(() => {
     void load()
@@ -83,7 +106,7 @@ export function OrdersPage() {
 
   useEffect(() => {
     setPage(1)
-  }, [status, debouncedSearch])
+  }, [status, debouncedSearch, adultOnly])
 
   const changeStatus = async (order: Order, next: OrderStatus) => {
     setStatusBusy(next)
@@ -99,11 +122,94 @@ export function OrdersPage() {
     }
   }
 
+  const verifyAdult = async (order: Order, verified: boolean) => {
+    setAdultBusy(true)
+    try {
+      const updated = await api.orders.verifyAdult(order.id, verified)
+      setOrders((current) => current.map((item) => (item.id === updated.id ? updated : item)))
+      setDetail((current) => (current && current.id === updated.id ? updated : current))
+      toast(
+        verified
+          ? `Orden ${updated.orderNumber}: edad +18 verificada`
+          : `Orden ${updated.orderNumber}: verificación +18 revertida`,
+      )
+    } catch (caught) {
+      toast(caught instanceof Error ? caught.message : 'No pudimos actualizar la verificación +18.', 'error')
+    } finally {
+      setAdultBusy(false)
+    }
+  }
+
+  const openDetail = (order: Order) => {
+    setDetail(order)
+    setDeliveryAccounts(
+      order.deliveredAccounts?.length
+        ? order.deliveredAccounts.map((account) => ({ ...account }))
+        : [emptyAccount()],
+    )
+  }
+
+  const updateDeliveryRow = (index: number, patch: Partial<DeliveredAccount>) => {
+    setDeliveryAccounts((current) =>
+      current.map((account, position) =>
+        position === index ? { ...account, ...patch } : account,
+      ),
+    )
+  }
+
+  const saveDelivery = async (order: Order, emailSent: boolean) => {
+    const accounts = deliveryAccounts
+      .map((account) => ({
+        email: account.email.trim(),
+        password: account.password,
+        validFrom: account.validFrom,
+        validTo: account.validTo,
+        platform: account.platform?.trim() || undefined,
+      }))
+      .filter((account) =>
+        Boolean(account.email || account.password || account.validFrom || account.validTo),
+      )
+
+    if (accounts.length === 0) {
+      toast('Agrega al menos una cuenta antes de guardar.', 'error')
+      return
+    }
+    if (emailSent && !order.customerEmail) {
+      toast('El pedido no tiene correo del cliente.', 'error')
+      return
+    }
+
+    setDeliveryBusy(true)
+    try {
+      const updated = await api.orders.saveDelivery(order.id, accounts, emailSent)
+      setOrders((current) => current.map((item) => (item.id === updated.id ? updated : item)))
+      setDetail(updated)
+      setDeliveryAccounts(
+        updated.deliveredAccounts?.length
+          ? updated.deliveredAccounts.map((account) => ({ ...account }))
+          : accounts,
+      )
+      if (emailSent) {
+        window.location.href = buildDeliveryMailto(updated, accounts, companyName)
+        toast('Se abrió tu cliente de correo con las cuentas del pedido.')
+      } else {
+        toast('Cuentas guardadas correctamente.')
+      }
+    } catch (caught) {
+      toast(
+        caught instanceof Error ? caught.message : 'No pudimos guardar las cuentas.',
+        'error',
+      )
+    } finally {
+      setDeliveryBusy(false)
+    }
+  }
+
   const whatsAppHref = (order: Order) => {
     const digits = (order.customerPhone ?? '').replace(/\D/g, '')
     if (!digits) return null
     const phone = digits.length === 10 ? `52${digits}` : digits
-    const message = `Hola ${order.customerName}, te contactamos de Eclipse Tech sobre tu orden ${order.orderNumber}.`
+    const message = `Hola ${order.customerName}, te contactamos de ${companyName} sobre tu orden ${order.orderNumber}.`
     return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
   }
 
@@ -138,6 +244,22 @@ export function OrdersPage() {
               {tab.label}
             </button>
           ))}
+          <span className="mx-1 my-1 w-px shrink-0 bg-white/10" aria-hidden />
+          <button
+            type="button"
+            onClick={() => setAdultOnly((current) => !current)}
+            aria-pressed={adultOnly}
+            className={cn(
+              'flex shrink-0 items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-semibold transition',
+              adultOnly
+                ? 'bg-rose-500/15 text-rose-200'
+                : 'text-white/45 hover:bg-white/[0.05] hover:text-white',
+            )}
+            title="Mostrar solo pedidos con contenido +18"
+          >
+            <ShieldCheck size={13} />
+            +18
+          </button>
         </div>
         <div className="relative lg:w-80">
           <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30" />
@@ -188,7 +310,16 @@ export function OrdersPage() {
               <tbody className="divide-y divide-white/[0.05]">
                 {orders.map((order) => (
                   <tr key={order.id} className="transition hover:bg-white/[0.025]">
-                    <td className="table-cell font-mono text-xs text-white/60">{order.orderNumber}</td>
+                    <td className="table-cell font-mono text-xs text-white/60">
+                      <span className="inline-flex items-center gap-1.5">
+                        {order.orderNumber}
+                        {hasAdultItems(order) ? (
+                          <span className="rounded-md border border-rose-400/30 bg-rose-500/10 px-1.5 py-0.5 text-[9px] font-bold text-rose-200">
+                            +18
+                          </span>
+                        ) : null}
+                      </span>
+                    </td>
                     <td className="table-cell">
                       <p className="font-medium text-white/85">{order.customerName}</p>
                       <p className="text-[11px] text-white/30">
@@ -216,7 +347,7 @@ export function OrdersPage() {
                         <button
                           type="button"
                           className="icon-btn"
-                          onClick={() => setDetail(order)}
+                          onClick={() => openDetail(order)}
                           aria-label={`Ver orden ${order.orderNumber}`}
                           title="Ver detalle"
                         >
@@ -424,6 +555,262 @@ export function OrdersPage() {
                   </li>
                 ))}
               </ul>
+            </div>
+
+            {hasAdultItems(detail) ? (
+              <div className="rounded-2xl border border-rose-400/25 bg-rose-500/[0.06] p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-rose-200/85">
+                    <ShieldCheck size={14} />
+                    Verificación +18
+                  </p>
+                  {detail.adultVerification?.verified ? (
+                    <span className="badge border-emerald-400/25 bg-emerald-500/10 text-emerald-200">
+                      <BadgeCheck size={12} />
+                      Edad verificada
+                    </span>
+                  ) : (
+                    <span className="badge border-amber-400/25 bg-amber-500/10 text-amber-200">
+                      Pendiente de revisión
+                    </span>
+                  )}
+                </div>
+                <p className="mt-2 text-[11px] leading-5 text-white/40">
+                  Revisa la credencial antes de entregar el acceso. Confirma que la persona es mayor de 18 años y
+                  que la foto corresponde al cliente.
+                </p>
+
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {detail.adultVerification?.documentUrl ? (
+                    <a
+                      href={detail.adultVerification.documentUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="group overflow-hidden rounded-xl border border-white/10 bg-black/30"
+                    >
+                      <img
+                        src={detail.adultVerification.documentUrl}
+                        alt={`Credencial de ${detail.customerName}`}
+                        className="h-44 w-full object-contain"
+                      />
+                      <span className="flex items-center justify-between border-t border-white/[0.07] px-3 py-2 text-[10px] text-white/45">
+                        Credencial (INE/pasaporte)
+                        <ExternalLink size={11} />
+                      </span>
+                    </a>
+                  ) : (
+                    <div className="flex h-44 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-white/10 bg-black/20 text-center">
+                      <Package size={18} className="text-white/25" />
+                      <p className="px-4 text-[10px] leading-5 text-white/30">
+                        Este pedido no tiene foto de credencial adjunta.
+                      </p>
+                    </div>
+                  )}
+
+                  {detail.adultVerification?.selfieUrl ? (
+                    <a
+                      href={detail.adultVerification.selfieUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="group overflow-hidden rounded-xl border border-white/10 bg-black/30"
+                    >
+                      <img
+                        src={detail.adultVerification.selfieUrl}
+                        alt={`Selfie con credencial de ${detail.customerName}`}
+                        className="h-44 w-full object-contain"
+                      />
+                      <span className="flex items-center justify-between border-t border-white/[0.07] px-3 py-2 text-[10px] text-white/45">
+                        Selfie con credencial
+                        <ExternalLink size={11} />
+                      </span>
+                    </a>
+                  ) : (
+                    <div className="flex h-44 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-white/10 bg-black/20 text-center">
+                      <Package size={18} className="text-white/25" />
+                      <p className="px-4 text-[10px] leading-5 text-white/30">Sin selfie adjunta (opcional).</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-3 flex items-center justify-between gap-2">
+                  <p className="text-[10px] text-white/30">
+                    {detail.adultVerification?.verifiedAt
+                      ? `Verificada el ${formatDate(detail.adultVerification.verifiedAt)}`
+                      : 'La foto viaja cifrada en tránsito y solo la ve el equipo admin.'}
+                  </p>
+                  <button
+                    type="button"
+                    className={detail.adultVerification?.verified ? 'btn-secondary' : 'btn-primary'}
+                    onClick={() => void verifyAdult(detail, !detail.adultVerification?.verified)}
+                    disabled={adultBusy}
+                  >
+                    {adultBusy ? (
+                      <Spinner size={14} />
+                    ) : detail.adultVerification?.verified ? (
+                      <RotateCcw size={14} />
+                    ) : (
+                      <BadgeCheck size={15} />
+                    )}
+                    {detail.adultVerification?.verified ? 'Revertir verificación' : 'Verificar +18'}
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.04] p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-emerald-200/85">
+                  <Mail size={14} />
+                  Cuentas entregadas
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  {detail.deliveredAt ? (
+                    <span className="text-[10px] text-white/35">
+                      Entregado {formatDate(detail.deliveredAt)}
+                    </span>
+                  ) : null}
+                  {detail.deliveryEmailSent ? (
+                    <Badge tone="success">
+                      <CheckCircle2 size={11} />
+                      Correo enviado
+                    </Badge>
+                  ) : null}
+                </div>
+              </div>
+              <p className="mt-2 text-[11px] leading-5 text-white/40">
+                Registra el correo y la contraseña de cada perfil entregado con su vigencia. Guarda
+                los cambios o envíalos directamente al cliente por correo.
+              </p>
+
+              <div className="mt-4 space-y-3">
+                {deliveryAccounts.map((account, index) => (
+                  <div
+                    key={index}
+                    className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-3"
+                  >
+                    <div className="mb-2.5 flex items-center justify-between">
+                      <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/35">
+                        Cuenta {index + 1}
+                      </span>
+                      {deliveryAccounts.length > 1 ? (
+                        <button
+                          type="button"
+                          className="icon-btn h-7 w-7 hover:border-rose-400/30 hover:bg-rose-500/10 hover:text-rose-200"
+                          onClick={() =>
+                            setDeliveryAccounts((current) =>
+                              current.filter((_, position) => position !== index),
+                            )
+                          }
+                          aria-label={`Quitar cuenta ${index + 1}`}
+                          title="Quitar cuenta"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      ) : null}
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <label className="block">
+                        <span className="mb-1 block text-[10px] text-white/35">Correo / perfil</span>
+                        <input
+                          type="text"
+                          value={account.email}
+                          onChange={(event) =>
+                            updateDeliveryRow(index, { email: event.target.value })
+                          }
+                          className="field"
+                          placeholder="cuenta@netflix.com o Perfil 1"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="mb-1 block text-[10px] text-white/35">Contraseña</span>
+                        <input
+                          type="text"
+                          value={account.password}
+                          onChange={(event) =>
+                            updateDeliveryRow(index, { password: event.target.value })
+                          }
+                          className="field"
+                          placeholder="Contraseña del perfil"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="mb-1 block text-[10px] text-white/35">Vigencia desde</span>
+                        <input
+                          type="date"
+                          value={account.validFrom}
+                          onChange={(event) =>
+                            updateDeliveryRow(index, { validFrom: event.target.value })
+                          }
+                          className="field"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="mb-1 block text-[10px] text-white/35">Vigencia hasta</span>
+                        <input
+                          type="date"
+                          value={account.validTo}
+                          onChange={(event) =>
+                            updateDeliveryRow(index, { validTo: event.target.value })
+                          }
+                          className="field"
+                        />
+                      </label>
+                      <label className="block sm:col-span-2">
+                        <span className="mb-1 block text-[10px] text-white/35">
+                          Plataforma (opcional)
+                        </span>
+                        <input
+                          type="text"
+                          value={account.platform ?? ''}
+                          onChange={(event) =>
+                            updateDeliveryRow(index, { platform: event.target.value })
+                          }
+                          className="field"
+                          placeholder="Netflix, Spotify, etc."
+                        />
+                      </label>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  className="btn-secondary px-3 py-2 text-xs"
+                  onClick={() =>
+                    setDeliveryAccounts((current) => [...current, emptyAccount()])
+                  }
+                >
+                  <Plus size={14} />
+                  Agregar cuenta
+                </button>
+                <div className="ml-auto flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => void saveDelivery(detail, false)}
+                    disabled={deliveryBusy}
+                  >
+                    {deliveryBusy ? <Spinner size={14} /> : <CheckCircle2 size={14} />}
+                    Guardar cuentas
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={() => void saveDelivery(detail, true)}
+                    disabled={deliveryBusy || !detail.customerEmail}
+                    title={
+                      detail.customerEmail
+                        ? `Enviar a ${detail.customerEmail}`
+                        : 'El pedido no tiene correo'
+                    }
+                  >
+                    <Mail size={14} />
+                    Enviar por correo
+                  </button>
+                </div>
+              </div>
             </div>
 
             {detail.notes ? (

@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Menu, MessageCircle, Search, ShoppingBag, User, X } from 'lucide-react'
+import { LogOut, Menu, MessageCircle, Search, ShoppingBag, User, X } from 'lucide-react'
 import { useStore } from '../context/StoreContext'
+import { useCustomerAuth } from '../context/CustomerAuthContext'
+import { useToast } from '../context/ToastContext'
 import { buildWhatsAppLink } from '../lib/pricing'
 import { cn } from '../lib/utils'
 import { scrollToId } from '../lib/hooks'
@@ -15,8 +17,6 @@ interface HeaderProps {
 
 const NAV_ITEMS = [
   { label: 'Catálogo', id: 'catalogo', route: null as string | null },
-  { label: 'Combos', id: null, route: 'combos' },
-  { label: 'Mi cuenta', id: null, route: 'cuenta' },
   { label: 'Dale Play', id: null, route: 'dale-play' },
   { label: 'Noticias', id: null, route: 'noticias' },
   { label: 'FAQ', id: null, route: 'faq' },
@@ -24,8 +24,19 @@ const NAV_ITEMS = [
 
 export function Header({ onSearch, includeAdult, onAccount }: HeaderProps) {
   const { cartCount, openCart, settings } = useStore()
+  const { user, profile, logout } = useCustomerAuth()
+  const { toast } = useToast()
   const [scrolled, setScrolled] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
+
+  const displayName = profile?.displayName || user?.displayName || user?.email || ''
+  const firstName = displayName.split(' ')[0] || 'Cliente'
+
+  const handleLogout = async () => {
+    await logout()
+    setMobileOpen(false)
+    toast('Cerraste sesión. ¡Hasta luego!', 'success')
+  }
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 12)
@@ -55,7 +66,7 @@ export function Header({ onSearch, includeAdult, onAccount }: HeaderProps) {
 
   const supportLink = buildWhatsAppLink(
     settings.whatsAppNumber,
-    'Hola Eclipse Tech, quiero información sobre una licencia.',
+    `Hola ${settings.companyName}, quiero información sobre una licencia.`,
   )
 
   return (
@@ -121,14 +132,37 @@ export function Header({ onSearch, includeAdult, onAccount }: HeaderProps) {
             <Search size={17} />
           </button>
 
-          <button
-            type="button"
-            onClick={onAccount}
-            className="hidden items-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-3.5 py-2.5 text-[11px] font-medium text-white/60 transition hover:border-white/20 hover:text-white lg:flex"
-          >
-            <User size={14} />
-            Mi cuenta
-          </button>
+          {user ? (
+            <div className="hidden items-center gap-1.5 lg:flex">
+              <button
+                type="button"
+                onClick={onAccount}
+                className="flex max-w-[170px] items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3.5 py-2.5 text-[11px] font-semibold text-white transition hover:border-primary/50"
+                title="Ver mi cuenta y mis pedidos"
+              >
+                <User size={14} className="shrink-0 text-accent" />
+                <span className="truncate">Hola, {firstName}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleLogout()}
+                className="icon-btn h-9 w-9"
+                title="Cerrar sesión"
+                aria-label="Cerrar sesión"
+              >
+                <LogOut size={15} />
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={onAccount}
+              className="hidden items-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-3.5 py-2.5 text-[11px] font-medium text-white/60 transition hover:border-white/20 hover:text-white lg:flex"
+            >
+              <User size={14} />
+              Iniciar sesión
+            </button>
+          )}
 
           <button
             type="button"
@@ -167,6 +201,43 @@ export function Header({ onSearch, includeAdult, onAccount }: HeaderProps) {
                   {item.label}
                 </button>
               ))}
+
+              {user ? (
+                <div className="col-span-2 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileOpen(false)
+                      onAccount()
+                    }}
+                    className="flex flex-1 items-center gap-2 rounded-2xl border border-primary/25 bg-primary/10 px-4 py-3 text-left text-sm font-semibold text-white"
+                  >
+                    <User size={15} className="shrink-0 text-accent" />
+                    <span className="truncate">Hola, {firstName}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleLogout()}
+                    className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-medium text-white/70"
+                  >
+                    <LogOut size={15} />
+                    Salir
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileOpen(false)
+                    onAccount()
+                  }}
+                  className="col-span-2 flex items-center gap-2 rounded-2xl border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-sm font-medium text-white/70"
+                >
+                  <User size={15} />
+                  Iniciar sesión
+                </button>
+              )}
+
               <a
                 href={supportLink}
                 target="_blank"

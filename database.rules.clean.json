@@ -1,0 +1,82 @@
+{
+  "rules": {
+    ".read": "auth != null && (auth.token.email == 'admin@eclipse.tech' || auth.token.email == 'jjaimej7@gmail.com' || auth.token.email == 'marisolestradaaguir@gmail.com')",
+    ".write": "auth != null && (auth.token.email == 'admin@eclipse.tech' || auth.token.email == 'jjaimej7@gmail.com' || auth.token.email == 'marisolestradaaguir@gmail.com')",
+
+    "catalogo": {
+      ".read": true,
+      ".write": "auth != null && (auth.token.email == 'admin@eclipse.tech' || auth.token.email == 'jjaimej7@gmail.com' || auth.token.email == 'marisolestradaaguir@gmail.com')"
+    },
+    "promociones": {
+      ".read": true,
+      ".write": "auth != null && (auth.token.email == 'admin@eclipse.tech' || auth.token.email == 'jjaimej7@gmail.com' || auth.token.email == 'marisolestradaaguir@gmail.com')"
+    },
+    "combos": {
+      ".read": true,
+      ".write": "auth != null && (auth.token.email == 'admin@eclipse.tech' || auth.token.email == 'jjaimej7@gmail.com' || auth.token.email == 'marisolestradaaguir@gmail.com')"
+    },
+    "themes": {
+      ".read": true,
+      ".write": "auth != null && (auth.token.email == 'admin@eclipse.tech' || auth.token.email == 'jjaimej7@gmail.com' || auth.token.email == 'marisolestradaaguir@gmail.com')"
+    },
+    "settings": {
+      ".read": true,
+      ".write": "auth != null && (auth.token.email == 'admin@eclipse.tech' || auth.token.email == 'jjaimej7@gmail.com' || auth.token.email == 'marisolestradaaguir@gmail.com')"
+    },
+    "coupons": {
+      ".read": true,
+      ".write": "auth != null && (auth.token.email == 'admin@eclipse.tech' || auth.token.email == 'jjaimej7@gmail.com' || auth.token.email == 'marisolestradaaguir@gmail.com')"
+    },
+    "content": {
+      ".read": true,
+      ".write": "auth != null && (auth.token.email == 'admin@eclipse.tech' || auth.token.email == 'jjaimej7@gmail.com' || auth.token.email == 'marisolestradaaguir@gmail.com')"
+    },
+
+    "orders": {
+      ".read": "auth != null && (auth.token.email == 'admin@eclipse.tech' || auth.token.email == 'jjaimej7@gmail.com' || auth.token.email == 'marisolestradaaguir@gmail.com')",
+      "$orderId": {
+        ".write": "(auth != null && (auth.token.email == 'admin@eclipse.tech' || auth.token.email == 'jjaimej7@gmail.com' || auth.token.email == 'marisolestradaaguir@gmail.com')) || (!data.exists() && newData.exists())",
+        ".validate": "(newData.hasChildren(['orderNumber', 'customerName', 'totalAmount', 'items']) || !newData.exists()) && (newData.child('adultVerification/verified').val() != true || (auth != null && (auth.token.email == 'admin@eclipse.tech' || auth.token.email == 'jjaimej7@gmail.com' || auth.token.email == 'marisolestradaaguir@gmail.com')))"
+      }
+    },
+
+    "usuarios": {
+      ".read": "auth != null && (auth.token.email == 'admin@eclipse.tech' || auth.token.email == 'jjaimej7@gmail.com' || auth.token.email == 'marisolestradaaguir@gmail.com')",
+      ".write": "auth != null && (auth.token.email == 'admin@eclipse.tech' || auth.token.email == 'jjaimej7@gmail.com' || auth.token.email == 'marisolestradaaguir@gmail.com')"
+    },
+    "usuarios_clientes": {
+      ".read": "auth != null",
+      "$uid": {
+        ".write": "auth != null && auth.uid === $uid",
+        "studentApproved": {
+          ".write": "auth != null && (auth.token.email == 'admin@eclipse.tech' || auth.token.email == 'jjaimej7@gmail.com' || auth.token.email == 'marisolestradaaguir@gmail.com')",
+          ".validate": "(!data.exists() && newData.val() === false) || newData.val() === data.val() || (auth != null && (auth.token.email == 'admin@eclipse.tech' || auth.token.email == 'jjaimej7@gmail.com' || auth.token.email == 'marisolestradaaguir@gmail.com'))"
+        }
+      }
+    },
+    "clientes": {
+      ".read": "auth != null && (auth.token.email == 'admin@eclipse.tech' || auth.token.email == 'jjaimej7@gmail.com' || auth.token.email == 'marisolestradaaguir@gmail.com')",
+      ".write": "auth != null && (auth.token.email == 'admin@eclipse.tech' || auth.token.email == 'jjaimej7@gmail.com' || auth.token.email == 'marisolestradaaguir@gmail.com')"
+    },
+    "cuentas": {
+      ".read": "auth != null && (auth.token.email == 'admin@eclipse.tech' || auth.token.email == 'jjaimej7@gmail.com' || auth.token.email == 'marisolestradaaguir@gmail.com')",
+      ".write": "auth != null && (auth.token.email == 'admin@eclipse.tech' || auth.token.email == 'jjaimej7@gmail.com' || auth.token.email == 'marisolestradaaguir@gmail.com')"
+    },
+    "codigos_streaming": {
+      ".read": "auth != null",
+      ".write": "auth != null && (auth.token.email == 'admin@eclipse.tech' || auth.token.email == 'jjaimej7@gmail.com' || auth.token.email == 'marisolestradaaguir@gmail.com')"
+    },
+    "códigos_streaming": {
+      ".read": "auth != null",
+      ".write": "auth != null && (auth.token.email == 'admin@eclipse.tech' || auth.token.email == 'jjaimej7@gmail.com' || auth.token.email == 'marisolestradaaguir@gmail.com')"
+    },
+    "limites_codigos": {
+      ".read": "auth != null",
+      ".write": "auth != null && (auth.token.email == 'admin@eclipse.tech' || auth.token.email == 'jjaimej7@gmail.com' || auth.token.email == 'marisolestradaaguir@gmail.com')"
+    },
+    "Costos": {
+      ".read": "auth != null && (auth.token.email == 'admin@eclipse.tech' || auth.token.email == 'jjaimej7@gmail.com' || auth.token.email == 'marisolestradaaguir@gmail.com')",
+      ".write": "auth != null && (auth.token.email == 'admin@eclipse.tech' || auth.token.email == 'jjaimej7@gmail.com' || auth.token.email == 'marisolestradaaguir@gmail.com')"
+    }
+  }
+}

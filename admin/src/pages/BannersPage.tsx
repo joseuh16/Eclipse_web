@@ -457,7 +457,7 @@ export function BannersPage() {
             </div>
             {form.imageUrl ? (
               <div className="mt-2 overflow-hidden rounded-xl border border-white/10 bg-white/[0.03]">
-                <img src={form.imageUrl} alt="Vista previa del banner" className="h-28 w-full object-cover" />
+                <img src={form.imageUrl} alt="Vista previa del banner" className="aspect-[16/9] w-full object-cover" />
               </div>
             ) : null}
             <p className="mt-1.5 text-[11px] text-white/35">

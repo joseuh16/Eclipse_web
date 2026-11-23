@@ -18,9 +18,13 @@ import {
   rtdbCreateOrder,
   rtdbGetBanners,
   rtdbGetCombos,
+  rtdbGetContent,
+  rtdbGetCustomerAssets,
+  rtdbGetOpiniones,
   rtdbGetProducts,
   rtdbGetSettings,
   rtdbGetTheme,
+  rtdbSubmitOpinion,
   rtdbValidateCoupon,
 } from './rtdb'
 
@@ -70,11 +74,19 @@ const DEFAULT_CONTENT: { site: SiteContent; news: NewsItem[] } = {
   news: [] as NewsItem[],
 }
 
-async function getFallbackContent(): Promise<{ site: SiteContent; news: NewsItem[] }> {
-  return DEFAULT_CONTENT
-}
-
 export const api = {
+  /** Opiniones de clientes (nodo `opiniones` de RTDB). */
+  getOpiniones: () => wrap(rtdbGetOpiniones(), 'No pudimos cargar las opiniones.'),
+  submitOpinion: (input: {
+    uid: string
+    nombre: string
+    email: string
+    estrellas: number
+    comentario: string
+  }) => wrap(rtdbSubmitOpinion(input), 'No pudimos guardar tu opinión.'),
+  getMisCodigos: (uid: string, email: string) =>
+    wrap(rtdbGetCustomerAssets(uid, email), 'No pudimos cargar tus códigos.'),
+
   getTheme: () =>
     wrap(
       withRtdbFallback(rtdbGetTheme, firestoreGetTheme),
@@ -102,7 +114,19 @@ export const api = {
   content: {
     get: () =>
       wrap(
-        withRtdbFallback(getFallbackContent, firestoreGetSiteContent),
+        withRtdbFallback(
+          rtdbGetContent,
+          async () => {
+            try {
+              const fallback = await firestoreGetSiteContent()
+              if (fallback.news.length > 0 || fallback.site.heroTitle) return fallback
+            } catch {
+              // Firestore no disponible: usar contenido por defecto.
+            }
+            return DEFAULT_CONTENT
+          },
+          (value) => value.news.length === 0 && !value.site.heroTitle && !value.site.heroImageUrl,
+        ),
         'No pudimos cargar el contenido del sitio.',
       ),
   },
@@ -168,6 +192,9 @@ export const SEASON_LABELS: Record<string, string> = {
   mothers: 'Día de la Madre',
   children: 'Día del Niño',
   fathers: 'Día del Padre',
+  diademuertos: 'Día de Muertos',
+  grito: 'Día del Grito',
+  amor: 'Amor y Amistad',
 }
 
 /** Emoji decorativo por temporada (cambia con el tema activo). */
@@ -180,4 +207,7 @@ export const SEASON_EMOJI: Record<string, string> = {
   mothers: '🌷',
   children: '🎈',
   fathers: '👔',
+  diademuertos: '💀',
+  grito: '🇲🇽',
+  amor: '💞',
 }

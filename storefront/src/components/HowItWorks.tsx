@@ -34,7 +34,7 @@ export function HowItWorks() {
   const { settings } = useStore()
   const supportLink = buildWhatsAppLink(
     settings.whatsAppNumber,
-    'Hola Eclipse Tech, necesito ayuda para elegir una licencia.',
+    `Hola ${settings.companyName}, necesito ayuda para elegir una licencia.`,
   )
 
   return (

@@ -88,6 +88,12 @@ export interface Combo {
 
 export interface PaymentSettings {
   id: number
+  /** Nombre de la empresa mostrado en tienda y panel. */
+  companyName: string
+  /** URL del logo subido desde el panel (si no hay, se usa el logo CSS). */
+  logoUrl: string
+  /** Descuento global para estudiantes aprobados, en porcentaje. */
+  studentDiscountPercent: number
   bankName: string
   beneficiary: string
   clabeNumber: string
@@ -96,6 +102,19 @@ export interface PaymentSettings {
   whatsAppNumber: string
   supportEmail: string
   paymentNote: string
+  updatedAt: string
+}
+
+/** Perfil del cliente autenticado, guardado en usuarios_clientes/<uid> de RTDB. */
+export interface CustomerProfile {
+  uid: string
+  email: string
+  displayName: string
+  isStudent: boolean
+  /** Solo el panel puede poner esto en true. */
+  studentApproved: boolean
+  studentCredentialUrl: string
+  createdAt: string
   updatedAt: string
 }
 
@@ -158,10 +177,18 @@ export interface CreateOrderPayload {
   customerName: string
   customerEmail?: string
   customerPhone?: string
+  /** UID de Firebase Auth cuando la persona inició sesión. */
+  customerUid?: string
   paymentMethod: PaymentMethod
   couponCode?: string
   adultConsent: boolean
+  /** Foto de credencial (INE/pasaporte) en dataURL — solo pedidos +18. */
+  adultDocumentUrl?: string
+  /** Selfie opcional con la credencial en dataURL — solo pedidos +18. */
+  adultSelfieUrl?: string
   notes?: string
+  /** Porcentaje de descuento de estudiante aprobado (0 si no aplica). */
+  studentDiscountPercent?: number
   items: OrderItemInput[]
 }
 

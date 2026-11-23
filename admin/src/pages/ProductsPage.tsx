@@ -339,7 +339,7 @@ export function ProductsPage() {
                             <img
                               src={product.imageUrl}
                               alt=""
-                              className="h-full w-full object-cover"
+                              className="h-full w-full object-contain p-1"
                               loading="lazy"
                             />
                           ) : (
@@ -567,7 +567,7 @@ export function ProductsPage() {
             </div>
             {form.imageUrl ? (
               <div className="mt-2 flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-2">
-                <img src={form.imageUrl} alt="Vista previa del producto" className="h-16 w-16 rounded-lg object-cover" />
+                <img src={form.imageUrl} alt="Vista previa del producto" className="h-16 w-16 rounded-lg bg-white/5 object-contain p-1" />
                 <p className="text-[11px] text-white/45 break-all">{form.imageUrl}</p>
               </div>
             ) : null}

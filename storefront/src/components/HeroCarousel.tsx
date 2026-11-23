@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { useStore } from '../context/StoreContext'
 import { api, SEASON_EMOJI, SEASON_LABELS } from '../lib/api'
+import { openComboBuilder } from '../lib/events'
 import { scrollToId } from '../lib/hooks'
 import type { Banner } from '../types'
 
@@ -130,7 +131,7 @@ export function HeroCarousel({ banners }: HeroCarouselProps) {
                   {banner.ctaText || 'Explorar catálogo'}
                   <ArrowRight size={16} className="transition group-hover:translate-x-0.5" />
                 </button>
-                <button type="button" onClick={() => scrollToId('combos')} className="btn-secondary">
+                <button type="button" onClick={openComboBuilder} className="btn-secondary">
                   <Sparkles size={15} className="text-accent" />
                   Crear mi combo
                 </button>

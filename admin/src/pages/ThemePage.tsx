@@ -8,10 +8,13 @@ import {
   Eye,
   Flower2,
   Ghost,
+  HeartHandshake,
   Leaf,
   Palette,
+  PartyPopper,
   Rocket,
   Save,
+  Skull,
   Snowflake,
   Sparkles,
   Type,
@@ -21,8 +24,9 @@ import {
 import { useCallback, useEffect, useMemo, useState, type CSSProperties, type FormEvent } from 'react'
 import { Badge, FormError, PageHeader, Spinner } from '../components/ui'
 import { useToast } from '../context/ToastContext'
+import { useBrand } from '../hooks/useBrand'
 import { api } from '../lib/api'
-import { PRESET_ORDER, THEME_PRESET_BY_KEY } from '../lib/themePresets'
+import { PRESET_ORDER, THEME_PRESET_BY_KEY, THEME_PRESETS } from '../lib/themePresets'
 import { cn, formatDate, hexToRgb } from '../lib/utils'
 import { SEASON_LABELS, type Theme, type ThemeInput } from '../types'
 
@@ -49,6 +53,9 @@ const THEME_ICONS: Record<string, LucideIcon> = {
   children: Rocket,
   fathers: Briefcase,
   baby: Baby,
+  diademuertos: Skull,
+  grito: PartyPopper,
+  amor: HeartHandshake,
 }
 
 function toDraft(theme: Theme): ThemeInput {
@@ -108,6 +115,7 @@ function ColorField({
 
 export function ThemePage() {
   const { toast } = useToast()
+  const { companyName, logoUrl } = useBrand()
   const [themes, setThemes] = useState<Theme[]>([])
   const [activeKey, setActiveKey] = useState<string | null>(null)
   const [draft, setDraft] = useState<ThemeInput | null>(null)
@@ -263,7 +271,7 @@ export function ThemePage() {
 
           {loading && themes.length === 0 ? (
             <div className="grid gap-3 sm:grid-cols-2">
-              {Array.from({ length: 8 }, (_, index) => (
+              {Array.from({ length: THEME_PRESETS.length }, (_, index) => (
                 <div key={index} className="skeleton h-48" />
               ))}
             </div>
@@ -402,7 +410,16 @@ export function ThemePage() {
                 {THEME_PRESET_BY_KEY[draft.themeKey]?.emoji ?? '✨'}
               </span>
               <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
-                <span className="font-display text-[11px] font-bold tracking-[0.22em] text-white">ECLIPSE</span>
+                <span className="flex min-w-0 items-center gap-2 font-display text-[11px] font-bold uppercase tracking-[0.18em] text-white">
+                  {logoUrl ? (
+                    <img
+                      src={logoUrl}
+                      alt=""
+                      className="h-6 w-6 shrink-0 rounded-md border border-white/15 object-contain"
+                    />
+                  ) : null}
+                  <span className="truncate">{companyName}</span>
+                </span>
                 <div className="flex gap-1.5">
                   <span
                     className="rounded-full px-2.5 py-1 text-[9px] font-semibold text-white"

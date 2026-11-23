@@ -109,7 +109,7 @@ export function CategoryPills({ active, onSelect, onCombos }: CategoryPillsProps
           className="group flex shrink-0 items-center gap-2 rounded-full border border-primary/35 bg-primary/10 px-4 py-2.5 text-xs font-semibold text-white transition duration-300 hover:border-primary/60 hover:bg-primary/20"
         >
           <Layers3 size={14} className="text-accent" />
-          Combos
+          Crear combo
           <span className="rounded-full bg-accent px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide text-black">
             Ahorra
           </span>

@@ -2,7 +2,7 @@ import { ChevronDown, MessageCircle } from 'lucide-react'
 import { useStore } from '../context/StoreContext'
 import { buildWhatsAppLink } from '../lib/pricing'
 
-const faqs = [
+const faqs = (companyName: string) => [
   {
     question: '¿Cómo recibo mi licencia después de pagar?',
     answer:
@@ -41,12 +41,12 @@ const faqs = [
   {
     question: '¿Cómo operamos?',
     answer:
-      'En Eclipse seguimos una estricta política de cero atajos y cero trampas: todo legal. No usamos tokens ni BINs; contratamos las cuentas directamente con cada plataforma y nuestros empleados configuran los perfiles, el idioma y el resto de ajustes. Por eso la entrega puede tardar algunos días.',
+      `En ${companyName} seguimos una estricta política de cero atajos y cero trampas: todo legal. No usamos tokens ni BINs; contratamos las cuentas directamente con cada plataforma y nuestros empleados configuran los perfiles, el idioma y el resto de ajustes. Por eso la entrega puede tardar algunos días.`,
   },
   {
     question: '¿Dónde operamos?',
     answer:
-      'Eclipse es una empresa enfocada en Yucatán, pero hemos llegado más allá: contrataciones en Campeche, Quintana Roo, CDMX e incluso fuera de México.',
+      `${companyName} es una empresa enfocada en Yucatán, pero hemos llegado más allá: contrataciones en Campeche, Quintana Roo, CDMX e incluso fuera de México.`,
   },
   {
     question: '¿Cómo cobramos?',
@@ -56,7 +56,7 @@ const faqs = [
   {
     question: '¿Cómo nos califican?',
     answer:
-      'Hemos habilitado un espacio para calificar la calidad del servicio. Eclipse tiene calidad y la gente lo sabe.',
+      `Hemos habilitado un espacio para calificar la calidad del servicio. ${companyName} tiene calidad y la gente lo sabe.`,
   },
 ]
 
@@ -64,7 +64,7 @@ export function Faq() {
   const { settings } = useStore()
   const supportLink = buildWhatsAppLink(
     settings.whatsAppNumber,
-    'Hola Eclipse Tech, tengo una duda sobre una licencia.',
+    `Hola ${settings.companyName}, tengo una duda sobre una licencia.`,
   )
 
   return (
@@ -101,7 +101,7 @@ export function Faq() {
         </div>
 
         <div className="space-y-2">
-          {faqs.map((faq) => (
+          {faqs(settings.companyName).map((faq) => (
             <details
               key={faq.question}
               className="group rounded-2xl border border-white/[0.08] bg-white/[0.025] transition open:border-white/15 open:bg-white/[0.04]"

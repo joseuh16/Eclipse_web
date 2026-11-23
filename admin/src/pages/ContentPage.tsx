@@ -271,7 +271,7 @@ export function ContentPage() {
               <span className="field-label">Imagen del hero</span>
               <div className="grid gap-3 sm:grid-cols-[200px_1fr]">
                 <label className="field relative block overflow-hidden p-0">
-                  <span className="flex h-full min-h-[128px] items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-white/[0.03]">
+                  <span className="flex aspect-[16/9] w-full items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-white/[0.03]">
                     {siteForm.heroImageUrl ? (
                       <img
                         src={siteForm.heroImageUrl}
@@ -476,7 +476,7 @@ export function ContentPage() {
           <div>
             <label className="field-label" htmlFor="news-image">Imagen</label>
             <div className="grid gap-3 sm:grid-cols-[180px_1fr]">
-              <div className="overflow-hidden rounded-xl border border-white/10 bg-white/[0.03]">
+              <div className="aspect-[16/10] overflow-hidden rounded-xl border border-white/10 bg-white/[0.03]">
                 {form.imageUrl ? (
                   <img src={form.imageUrl} alt="" className="h-full w-full object-cover" />
                 ) : (

@@ -3,7 +3,7 @@
 // Lee los nodos: catalogo, promociones, combos, themes, settings, coupons,
 // content, orders — todo con la misma instancia `rtdb` de ./firebase.
 // ---------------------------------------------------------------------------
-import { get, ref, remove, set } from 'firebase/database'
+import { get, ref, remove as fbRemove, set as fbSet, update as fbUpdate } from 'firebase/database'
 import { rtdb } from './firebase'
 import { round2 } from './utils'
 import type {
@@ -12,6 +12,10 @@ import type {
   Combo,
   Coupon,
   CouponValidation,
+  CustomerProfile,
+  DashboardStats,
+  DailySales,
+  DeliveredAccount,
   NewsItem,
   Order,
   OrderStatus,
@@ -24,15 +28,67 @@ import type {
   SiteContentInput,
   Theme,
   ThemeResponse,
+  TopProduct,
 } from '../types'
+import { THEME_PRESETS } from './themePresets'
 
 type RtdbData = Record<string, unknown>
 
 let cache: RtdbData | null = null
+let cacheAt = 0
 let cachePromise: Promise<RtdbData> | null = null
+const CACHE_TTL_MS = 15_000
 export const bannerKeys: Map<number, string> = new Map<number, string>()
 
-async function readNode(path: string): Promise<unknown> {
+/** Fuerza a releer RTDB en la siguiente consulta (tras guardar cambios). */
+export function invalidateRtdbCache(): void {
+  cache = null
+  cacheAt = 0
+}
+
+// Escrituras: cada set/update/remove invalida la caché para reflejar los
+// cambios de inmediato en el panel.
+function writeError(error: unknown): never {
+  const code =
+    typeof error === 'object' && error !== null && 'code' in error
+      ? String((error as { code: unknown }).code)
+      : ''
+  if (code === 'PERMISSION_DENIED') {
+    throw new Error(
+      'Firebase rechazó el guardado (permiso denegado). Publica las reglas de database.rules.json en Firebase Console → Realtime Database → Reglas.',
+    )
+  }
+  throw error instanceof Error ? error : new Error('No pudimos guardar los cambios en Firebase.')
+}
+
+async function set(target: Parameters<typeof fbSet>[0], value: Parameters<typeof fbSet>[1]): Promise<void> {
+  try {
+    await fbSet(target, value)
+  } catch (error) {
+    writeError(error)
+  }
+  invalidateRtdbCache()
+}
+
+async function update(target: Parameters<typeof fbUpdate>[0], value: Parameters<typeof fbUpdate>[1]): Promise<void> {
+  try {
+    await fbUpdate(target, value)
+  } catch (error) {
+    writeError(error)
+  }
+  invalidateRtdbCache()
+}
+
+async function remove(target: Parameters<typeof fbRemove>[0]): Promise<void> {
+  try {
+    await fbRemove(target)
+  } catch (error) {
+    writeError(error)
+  }
+  invalidateRtdbCache()
+}
+
+export async function readNode(path: string): Promise<unknown> {
   try {
     const snap = await get(ref(rtdb, path))
     return snap.exists() ? snap.val() : null
@@ -41,8 +97,69 @@ async function readNode(path: string): Promise<unknown> {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Nodos "huérfanos" administrables desde el panel (Base de datos).
+// Se reutiliza readNode para no duplicar la lógica de lectura de RTDB.
+// ---------------------------------------------------------------------------
+function asDatabaseRecord(raw: unknown): Record<string, unknown> {
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    return raw as Record<string, unknown>
+  }
+  // Primitivos y arrays se exponen como un único registro raíz editable.
+  return raw === null || raw === undefined ? {} : { __root__: raw }
+}
+
+export async function rtdbGetDatabaseNode(node: string): Promise<Record<string, unknown>> {
+  const raw = await readNode(node)
+  const isEmpty =
+    raw === null ||
+    raw === undefined ||
+    (typeof raw === 'object' && !Array.isArray(raw) && Object.keys(raw as Record<string, unknown>).length === 0)
+
+  if (node === 'codigos_streaming' && isEmpty) {
+    // El nodo también existe con acento en datos legacy.
+    const legacy = await readNode('códigos_streaming')
+    if (legacy !== null && legacy !== undefined) return asDatabaseRecord(legacy)
+  }
+
+  return asDatabaseRecord(raw)
+}
+
+export async function rtdbSaveDatabaseRecord(node: string, key: string, value: unknown): Promise<void> {
+  if (!node || !key) throw new Error('El nodo y la clave son obligatorios.')
+
+  if (node === 'usuarios') {
+    // Escritura segura: roles conocidos y ningún otro campo.
+    const record =
+      value && typeof value === 'object' && !Array.isArray(value)
+        ? (value as Record<string, unknown>)
+        : null
+    const roles = ['admin', 'empleado', 'cliente']
+    if (
+      !record ||
+      Object.keys(record).some((field) => field !== 'rol') ||
+      !roles.includes(String(record.rol))
+    ) {
+      throw new Error('En usuarios solo se permite editar el campo rol (admin, empleado o cliente).')
+    }
+  }
+
+  const target = key === '__root__' ? ref(rtdb, node) : ref(rtdb, `${node}/${key}`)
+  await set(target, value)
+}
+
+export async function rtdbRemoveDatabaseRecord(node: string, key: string): Promise<void> {
+  if (node === 'usuarios') {
+    throw new Error('No se pueden eliminar usuarios desde el panel (incluido tu propio uid).')
+  }
+  if (!node || !key) throw new Error('El nodo y la clave son obligatorios.')
+
+  const target = key === '__root__' ? ref(rtdb, node) : ref(rtdb, `${node}/${key}`)
+  await remove(target)
+}
+
 async function loadRoot(): Promise<RtdbData> {
-  if (cache) return cache
+  if (cache && Date.now() - cacheAt < CACHE_TTL_MS) return cache
   if (cachePromise) return cachePromise
   cachePromise = (async () => {
     const [catalogo, promociones, combos, themes, settings, coupons, content, orders] = await Promise.all([
@@ -65,6 +182,7 @@ async function loadRoot(): Promise<RtdbData> {
       content,
       orders,
     }
+    cacheAt = Date.now()
     return cache
   })()
   try {
@@ -273,49 +391,72 @@ export async function rtdbGetCombos(): Promise<Combo[]> {
   return items
 }
 
+function presetToTheme(preset: (typeof THEME_PRESETS)[number], isActive: boolean): Theme {
+  return {
+    id: hashId(preset.key),
+    themeKey: preset.key,
+    primaryColor: preset.primaryColor,
+    secondaryColor: preset.secondaryColor,
+    accentColor: preset.accentColor,
+    backgroundColor: preset.backgroundColor,
+    fontStyle: preset.fontStyle,
+    customCss: preset.customCss,
+    isActive,
+    updatedAt: '',
+  }
+}
+
 export async function rtdbGetTheme(): Promise<ThemeResponse> {
   const root = await loadRoot()
   const themesNode = (root.themes ?? null) as Record<string, any> | null
-  const themes: Theme[] = []
+
+  // Base: todos los presets de temporada (siempre visibles en el panel).
+  const byKey = new Map<string, Theme>()
+  THEME_PRESETS.forEach((preset) => {
+    byKey.set(preset.key, presetToTheme(preset, false))
+  })
+
+  let storedActiveKey = ''
   if (themesNode && typeof themesNode === 'object') {
     for (const [key, val] of Object.entries(themesNode)) {
       if (!val || typeof val !== 'object') continue
       const v = val as Record<string, any>
-      themes.push({
-        id: hashId(key),
-        themeKey: String(v.themeKey ?? key),
-        primaryColor: String(v.primaryColor ?? '#8B5CF6'),
-        secondaryColor: String(v.secondaryColor ?? '#22D3EE'),
-        accentColor: String(v.accentColor ?? '#FBBF24'),
-        backgroundColor: String(v.backgroundColor ?? '#06060D'),
-        fontStyle: String(v.fontStyle ?? 'Sora'),
-        customCss: String(v.customCss ?? ''),
+      const themeKey = String(v.themeKey ?? key)
+      if (Boolean(v.isActive) && !storedActiveKey) storedActiveKey = themeKey
+      const preset = THEME_PRESETS.find((item) => item.key === themeKey)
+      byKey.set(themeKey, {
+        id: hashId(themeKey),
+        themeKey,
+        primaryColor: String(v.primaryColor ?? preset?.primaryColor ?? '#8B5CF6'),
+        secondaryColor: String(v.secondaryColor ?? preset?.secondaryColor ?? '#22D3EE'),
+        accentColor: String(v.accentColor ?? preset?.accentColor ?? '#FBBF24'),
+        backgroundColor: String(v.backgroundColor ?? preset?.backgroundColor ?? '#06060D'),
+        fontStyle: String(v.fontStyle ?? preset?.fontStyle ?? 'Sora'),
+        customCss: String(v.customCss ?? preset?.customCss ?? ''),
         isActive: Boolean(v.isActive ?? false),
         updatedAt: String(v.updatedAt ?? ''),
       })
     }
   }
-  const active = themes.find((t) => t.isActive) ?? themes[0] ?? {
-    id: 1,
-    themeKey: 'base',
-    primaryColor: '#8B5CF6',
-    secondaryColor: '#22D3EE',
-    accentColor: '#FBBF24',
-    backgroundColor: '#06060D',
-    fontStyle: 'Sora',
-    customCss: '',
-    isActive: true,
-    updatedAt: new Date(0).toISOString(),
+
+  const themes = [...byKey.values()]
+  const activeKey = storedActiveKey || 'base'
+  const activeBase = byKey.get(activeKey) ?? byKey.get('base') ?? presetToTheme(THEME_PRESETS[0]!, true)
+  return {
+    active: { ...activeBase, isActive: true },
+    themes: themes.map((theme) => ({ ...theme, isActive: theme.themeKey === activeKey })),
   }
-  return { active, themes }
 }
 
 export async function rtdbGetSettings(): Promise<PaymentSettings> {
   const root = await loadRoot()
-  const settingsNode = (root.settings ?? null) as Record<string, any> | null
-  const data = (settingsNode && typeof settingsNode === 'object' ? settingsNode : {}) as Record<string, any>
+  const settingsRoot = (root.settings ?? {}) as Record<string, any>
+  const data = (settingsRoot.main ?? settingsRoot) as Record<string, any>
   return {
     id: 1,
+    companyName: String(data.companyName ?? 'Eclipse Tech'),
+    logoUrl: String(data.logoUrl ?? ''),
+    studentDiscountPercent: Number(data.studentDiscountPercent ?? 0),
     bankName: String(data.bankName ?? 'BBVA México'),
     beneficiary: String(data.beneficiary ?? 'Eclipse Digital'),
     clabeNumber: String(data.clabeNumber ?? '012180000000000000'),
@@ -327,6 +468,39 @@ export async function rtdbGetSettings(): Promise<PaymentSettings> {
     updatedAt: String(data.updatedAt ?? new Date(0).toISOString()),
   }
 }
+
+/** Todos los perfiles de clientes registrados en la tienda (RTDB). */
+export async function rtdbGetCustomers(): Promise<CustomerProfile[]> {
+  const raw = await readNode('usuarios_clientes')
+  if (!raw || typeof raw !== 'object') return []
+
+  const customers: CustomerProfile[] = []
+  for (const [uid, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!value || typeof value !== 'object') continue
+    const profile = value as Record<string, unknown>
+    customers.push({
+      uid,
+      email: String(profile.email ?? ''),
+      displayName: String(profile.displayName ?? profile.nombre ?? ''),
+      isStudent: Boolean(profile.isStudent ?? false),
+      studentApproved: Boolean(profile.studentApproved ?? false),
+      studentCredentialUrl: String(profile.studentCredentialUrl ?? ''),
+      createdAt: String(profile.createdAt ?? ''),
+      updatedAt: String(profile.updatedAt ?? ''),
+    })
+  }
+
+  // Primero las solicitudes de estudiante pendientes, luego por registro reciente.
+  return customers.sort(
+    (a, b) =>
+      Number(b.isStudent && !b.studentApproved) - Number(a.isStudent && !a.studentApproved) ||
+      +new Date(b.createdAt) - +new Date(a.createdAt) ||
+      a.email.localeCompare(b.email),
+  )
+}
+
+/** @deprecated Usa rtdbGetCustomers(): ahora devuelve todos los clientes. */
+export const rtdbGetStudents = rtdbGetCustomers
 
 export async function rtdbValidateCoupon(code: string): Promise<CouponValidation> {
   const normalized = code.trim().toUpperCase()
@@ -428,6 +602,40 @@ export async function rtdbGetContent(): Promise<{ site: SiteContent; news: NewsI
   return { site, news }
 }
 
+/** RTDB puede devolver las cuentas como array o como objeto indexado. */
+function normalizeDeliveredAccounts(raw: unknown): DeliveredAccount[] | undefined {
+  if (!raw || typeof raw !== 'object') return undefined
+  const values = Array.isArray(raw) ? raw : Object.values(raw as Record<string, unknown>)
+  const accounts = values
+    .filter((value): value is Record<string, unknown> => Boolean(value) && typeof value === 'object')
+    .map((value) => ({
+      email: String(value.email ?? ''),
+      password: String(value.password ?? ''),
+      validFrom: String(value.validFrom ?? ''),
+      validTo: String(value.validTo ?? ''),
+      platform: value.platform ? String(value.platform) : undefined,
+    }))
+  return accounts.length > 0 ? accounts : undefined
+}
+
+/**
+ * La clave real del pedido en RTDB no siempre coincide con el id numérico
+ * calculado por `hashId`. Se reutiliza en todas las escrituras sobre orders.
+ */
+function findOrderKey(ordersNode: Record<string, any> | null, id: number): string | null {
+  if (!ordersNode || typeof ordersNode !== 'object') return null
+  return (
+    Object.keys(ordersNode).find((candidate) => {
+      const numeric = Number(candidate)
+      const resolved =
+        Number.isInteger(numeric) && String(numeric) === candidate
+          ? numeric
+          : hashId(`order:${candidate}`)
+      return resolved === id
+    }) ?? null
+  )
+}
+
 export async function rtdbGetOrders(): Promise<PagedResult<Order>> {
   const root = await loadRoot()
   const ordersNode = (root.orders ?? null) as Record<string, any> | null
@@ -436,26 +644,97 @@ export async function rtdbGetOrders(): Promise<PagedResult<Order>> {
     for (const [key, val] of Object.entries(ordersNode)) {
       if (!val || typeof val !== 'object') continue
       const o = val as Record<string, any>
+      const numericKey = Number(key)
+      const id = Number.isInteger(numericKey) && String(numericKey) === key ? numericKey : hashId(`order:${key}`)
+      const adultRaw = (o.adultVerification ?? o.verificacionAdulto ?? null) as Record<string, any> | null
+      const adultVerification =
+        adultRaw && typeof adultRaw === 'object'
+          ? {
+              documentUrl: String(adultRaw.documentUrl ?? adultRaw.credencial ?? '') || null,
+              selfieUrl: String(adultRaw.selfieUrl ?? adultRaw.selfie ?? '') || null,
+              verified: Boolean(adultRaw.verified ?? adultRaw.verificado ?? false),
+              verifiedAt:
+                adultRaw.verifiedAt ?? adultRaw.verificadoEn
+                  ? String(adultRaw.verifiedAt ?? adultRaw.verificadoEn)
+                  : null,
+            }
+          : null
       orders.push({
-        id: hashId(`order:${key}`),
+        id,
         orderNumber: String(o.numero ?? o.orderNumber ?? `ECL-${key}`),
         customerName: String(o.cliente ?? o.customerName ?? ''),
-        customerEmail: o.email ? String(o.email) : null,
-        customerPhone: o.telefono ? String(o.telefono) : null,
+        customerEmail: o.customerEmail ?? o.email ? String(o.customerEmail ?? o.email) : null,
+        customerPhone: o.customerPhone ?? o.telefono ? String(o.customerPhone ?? o.telefono) : null,
+        customerUid: o.customerUid ?? o.clienteUid ?? o.uid ?? o.usuarioUid
+          ? String(o.customerUid ?? o.clienteUid ?? o.uid ?? o.usuarioUid)
+          : null,
         subtotal: Number(o.subtotal ?? 0),
         discountAmount: Number(o.descuento ?? o.discountAmount ?? 0),
         totalAmount: Number(o.total ?? o.totalAmount ?? 0),
         paymentMethod: (o.metodoPago ?? o.paymentMethod ?? 'BBVA') as Order['paymentMethod'],
         status: (o.estado ?? o.status ?? 'Pending') as OrderStatus,
-        couponCode: o.cupon ? String(o.cupon) : null,
-        notes: o.notas ? String(o.notas) : null,
-        items: [],
+        couponCode: o.couponCode ?? o.cupon ? String(o.couponCode ?? o.cupon) : null,
+        notes: o.notes ?? o.notas ? String(o.notes ?? o.notas) : null,
+        items: Array.isArray(o.items) ? (o.items as Order['items']) : [],
+        adultVerification,
+        deliveredAccounts: normalizeDeliveredAccounts(o.deliveredAccounts),
+        deliveredAt: o.deliveredAt ? String(o.deliveredAt) : undefined,
+        deliveryEmailSent: Boolean(o.deliveryEmailSent ?? false),
         createdAt: String(o.creadoEn ?? o.createdAt ?? new Date(0).toISOString()),
-        verifiedAt: o.verificadoEn ? String(o.verificadoEn) : null,
+        verifiedAt: o.verifiedAt ?? o.verificadoEn ? String(o.verifiedAt ?? o.verificadoEn) : null,
       })
     }
   }
   return { items: orders.sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)), page: 1, pageSize: 20, total: orders.length, totalPages: 1 }
+}
+
+function dayKey(value: string): string {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 10)
+}
+
+export async function rtdbDashboardStats(): Promise<DashboardStats> {
+  const [ordersResult, products, coupons] = await Promise.all([rtdbGetOrders(), rtdbGetProducts(), rtdbGetCoupons()])
+
+  const allOrders = ordersResult.items
+  const today = new Date().toISOString().slice(0, 10)
+  const pending = allOrders.filter((order) => order.status === 'Pending')
+  const verified = allOrders.filter((order) => order.status === 'Verified')
+
+  const salesLast7Days: DailySales[] = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date()
+    date.setDate(date.getDate() - (6 - index))
+    const key = date.toISOString().slice(0, 10)
+    const dayOrders = verified.filter((order) => dayKey(order.createdAt) === key)
+    return {
+      date: key,
+      orders: dayOrders.length,
+      revenue: round2(dayOrders.reduce((sum, order) => sum + order.totalAmount, 0)),
+    }
+  })
+
+  const productUnits = new Map<string, TopProduct>()
+  verified.forEach((order) => {
+    order.items.forEach((item) => {
+      const current = productUnits.get(item.name) ?? { name: item.name, units: 0, revenue: 0 }
+      current.units += item.quantity
+      current.revenue = round2(current.revenue + item.lineTotal)
+      productUnits.set(item.name, current)
+    })
+  })
+
+  return {
+    pendingOrders: pending.length,
+    todayOrders: allOrders.filter((order) => dayKey(order.createdAt) === today).length,
+    totalOrders: allOrders.length,
+    activeProducts: products.filter((product) => product.isActive).length,
+    activeCoupons: coupons.filter((coupon) => coupon.isActive && !coupon.isExpired).length,
+    verifiedRevenue: round2(verified.reduce((sum, order) => sum + order.totalAmount, 0)),
+    pendingRevenue: round2(pending.reduce((sum, order) => sum + order.totalAmount, 0)),
+    recentOrders: [...allOrders].sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)).slice(0, 6),
+    salesLast7Days,
+    topProducts: [...productUnits.values()].sort((a, b) => b.units - a.units).slice(0, 5),
+  } satisfies DashboardStats
 }
 
 // ---------------------------------------------------------------------------
@@ -571,6 +850,13 @@ export async function rtdbSaveSettings(payload: PaymentSettingsInput): Promise<v
   await set(ref(rtdb, 'settings/main'), { ...payload, updatedAt: new Date().toISOString() })
 }
 
+/** Las reglas de RTDB solo permiten al admin escribir `studentApproved`. */
+export async function rtdbApproveStudent(uid: string, approved: boolean): Promise<void> {
+  if (!uid) throw new Error('Perfil de estudiante no encontrado.')
+  await fbUpdate(ref(rtdb, `usuarios_clientes/${uid}`), { studentApproved: approved })
+  invalidateRtdbCache()
+}
+
 export async function rtdbSaveContent(payload: SiteContentInput): Promise<void> {
   await set(ref(rtdb, 'content/hero'), { ...payload, updatedAt: new Date().toISOString() })
 }
@@ -584,5 +870,56 @@ export async function rtdbRemoveNews(slug: string): Promise<void> {
 }
 
 export async function rtdbUpdateOrder(id: number, status: OrderStatus): Promise<void> {
-  await set(ref(rtdb, `orders/${id}`), { estado: status, actualizadoEn: new Date().toISOString() })
+  const root = await loadRoot()
+  const key = findOrderKey((root.orders ?? null) as Record<string, any> | null, id)
+  if (!key) throw new Error('Orden no encontrada en Firebase.')
+  const now = new Date().toISOString()
+  await update(ref(rtdb, `orders/${key}`), {
+    status,
+    estado: status,
+    verifiedAt: status === 'Verified' ? now : null,
+    actualizadoEn: now,
+  })
+}
+
+/** Marca (o revierte) la verificación de mayoría de edad de un pedido +18. */
+export async function rtdbVerifyAdult(id: number, verified = true): Promise<void> {
+  const root = await loadRoot()
+  const ordersNode = (root.orders ?? null) as Record<string, any> | null
+  if (!ordersNode || typeof ordersNode !== 'object') {
+    throw new Error('No hay órdenes registradas en Firebase.')
+  }
+  const key = findOrderKey(ordersNode, id)
+  if (!key) throw new Error('Orden no encontrada en Firebase.')
+
+  const record = (ordersNode[key] ?? {}) as Record<string, any>
+  const current = (record.adultVerification ?? record.verificacionAdulto ?? {}) as Record<string, unknown>
+  const now = new Date().toISOString()
+
+  await update(ref(rtdb, `orders/${key}`), {
+    adultVerification: {
+      ...current,
+      verified,
+      verifiedAt: verified ? now : null,
+    },
+    actualizadoEn: now,
+  })
+}
+
+/** Guarda las cuentas entregadas de un pedido sin sobrescribir el resto del nodo. */
+export async function rtdbSaveDelivery(
+  orderId: number,
+  accounts: DeliveredAccount[],
+  emailSent: boolean,
+): Promise<void> {
+  const root = await loadRoot()
+  const key = findOrderKey((root.orders ?? null) as Record<string, any> | null, orderId)
+  if (!key) throw new Error('Orden no encontrada en Firebase.')
+
+  const now = new Date().toISOString()
+  await update(ref(rtdb, `orders/${key}`), {
+    deliveredAccounts: accounts,
+    deliveredAt: now,
+    deliveryEmailSent: emailSent,
+  })
 }

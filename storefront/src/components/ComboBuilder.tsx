@@ -20,7 +20,12 @@ import { ProductImage } from './ProductImage'
 const CATEGORIES: Category[] = ['Video', 'IA', 'Edicion', 'Escolar', 'Musica', 'Deportes', 'Lifelong']
 const MAX_PROFILES = 8
 
-export function ComboBuilder() {
+interface ComboBuilderProps {
+  compact?: boolean
+  onAdded?: () => void
+}
+
+export function ComboBuilder({ compact = false, onAdded }: ComboBuilderProps) {
   const { combos, addCombo, openCart } = useStore()
   const { toast } = useToast()
   const [products, setProducts] = useState<Product[]>([])
@@ -93,11 +98,15 @@ export function ComboBuilder() {
     }
     addCombo(selected, duration)
     setSelected([])
+    onAdded?.()
     openCart()
   }
 
   return (
-    <section id="combos" className="page-shell scroll-mt-28 pt-16 sm:pt-24">
+    <section
+      id={compact ? undefined : 'combos'}
+      className={compact ? 'pb-2' : 'page-shell scroll-mt-28 pt-16 sm:pt-24'}
+    >
       <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-accent/80">
@@ -237,7 +246,7 @@ export function ComboBuilder() {
                         <ProductImage
                           src={product.imageUrl}
                           alt={product.name}
-                          className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                          className="h-full w-full p-1.5 transition duration-500 group-hover:scale-105"
                         />
                         {isSelected && (
                           <span className="absolute inset-0 grid place-items-center bg-primary/40 backdrop-blur-[1px]">
@@ -331,7 +340,7 @@ export function ComboBuilder() {
                       <ProductImage
                         src={product.imageUrl}
                         alt={product.name}
-                        className="h-full w-full object-cover"
+                        className="h-full w-full p-1"
                       />
                     </span>
                     <div className="min-w-0 flex-1">

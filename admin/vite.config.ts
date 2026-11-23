@@ -6,6 +6,8 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
+    // Rutas relativas: funciona tanto en dominio raíz como en subcarpeta/subdominio.
+    base: './',
     server: {
       port: 5174,
       host: true,
@@ -20,6 +22,14 @@ export default defineConfig(({ mode }) => {
       outDir: 'dist',
       sourcemap: false,
       chunkSizeWarningLimit: 900,
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            firebase: ['firebase/app', 'firebase/auth', 'firebase/database', 'firebase/storage'],
+            react: ['react', 'react-dom'],
+          },
+        },
+      },
     },
   }
 })

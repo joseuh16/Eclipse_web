@@ -5,6 +5,7 @@ import {
   PackageSearch,
   RotateCcw,
   Search,
+  ShieldAlert,
   SlidersHorizontal,
   Tag,
   X,
@@ -386,6 +387,24 @@ export function Catalog({
           </div>
         )}
       </div>
+
+      {category === 'AdultPlus' && !loading ? (
+        <div className="mt-5 flex flex-col gap-3 rounded-2xl border border-rose-400/20 bg-rose-500/[0.06] p-4 sm:flex-row sm:items-center">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-rose-400/25 bg-rose-500/10 text-rose-200">
+            <ShieldAlert size={18} />
+          </span>
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-rose-200/85">
+              Sección +18 · verificación obligatoria
+            </p>
+            <p className="mt-1 text-[11px] leading-5 text-white/45">
+              Al finalizar la compra confirmas tu mayoría de edad y subes una foto de tu credencial (INE o
+              pasaporte). Nuestro equipo la revisa antes de entregar el acceso; la foto solo se usa para verificar
+              edad.
+            </p>
+          </div>
+        </div>
+      ) : null}
 
       {error && !loading ? (
         <div className="mt-10 rounded-3xl border border-rose-400/15 bg-rose-500/[0.055] p-10 text-center">

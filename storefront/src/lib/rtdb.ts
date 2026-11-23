@@ -1,4 +1,4 @@
-import { get, ref } from 'firebase/database'
+import { get, ref, update } from 'firebase/database'
 import { rtdb } from './firebase'
 import { buildWhatsAppLink, formatCurrency, round2 } from './pricing'
 import type {
@@ -7,12 +7,14 @@ import type {
   Combo,
   CouponValidation,
   CreateOrderPayload,
+  NewsItem,
   OrderConfirmation,
   OrderItemSnapshot,
   PagedResult,
   PaymentSettings,
   Product,
   ProductQuery,
+  SiteContent,
   Theme,
   ThemeResponse,
 } from '../types'
@@ -244,7 +246,7 @@ export async function rtdbGetBanners(): Promise<Banner[]> {
       description: String(v.descripcion ?? ''),
       discountText: String(v.descuento ?? ''),
       expiryDate,
-      isActive: !isExpired,
+      isActive: (v.activo ?? true) && !isExpired,
       imageUrl: String(v.imagen_fondo || v.imagen || ''),
       ctaText: String(v.cta_text ?? 'Ver más'),
       ctaUrl: String(v.cta_url ?? '#/'),
@@ -257,22 +259,48 @@ export async function rtdbGetBanners(): Promise<Banner[]> {
 }
 
 export async function rtdbGetSettings(): Promise<PaymentSettings> {
+  const [main, legacy] = await Promise.all([readNode('settings/main'), readNode('settings')])
+  const raw = (main ?? legacy ?? {}) as Record<string, any>
+  const data = (raw.main ?? raw) as Record<string, any>
   return {
     id: 1,
-    bankName: 'BBVA México',
-    beneficiary: 'Eclipse Digital',
-    clabeNumber: '012180000000000000',
-    mercadoPagoClabe: '722969000000000000',
-    oxxoReference: 'ECLIPSE',
-    whatsAppNumber: '5219971946172',
-    supportEmail: 'soporte@eclipse.digital',
-    paymentNote: 'Realiza tu pago y envía tu comprobante por WhatsApp con tu número de pedido para validar tu compra.',
-    updatedAt: new Date().toISOString(),
+    companyName: String(data.companyName ?? 'Eclipse Tech'),
+    logoUrl: String(data.logoUrl ?? ''),
+    studentDiscountPercent: Math.max(0, Math.min(100, Number(data.studentDiscountPercent ?? 0))),
+    bankName: String(data.bankName ?? 'BBVA México'),
+    beneficiary: String(data.beneficiary ?? 'Eclipse Digital'),
+    clabeNumber: String(data.clabeNumber ?? '012180000000000000'),
+    mercadoPagoClabe: String(data.mercadoPagoClabe ?? '722969000000000000'),
+    oxxoReference: String(data.oxxoReference ?? 'ECLIPSE'),
+    whatsAppNumber: String(data.whatsAppNumber ?? '5219971946172'),
+    supportEmail: String(data.supportEmail ?? 'soporte@eclipse.digital'),
+    paymentNote: String(data.paymentNote ?? 'Realiza tu pago y envía tu comprobante por WhatsApp con tu número de pedido para validar tu compra.'),
+    updatedAt: String(data.updatedAt ?? new Date().toISOString()),
   }
 }
 
 export async function rtdbGetCombos(): Promise<Combo[]> {
-  // Progressive discount tiers for ComboBuilder (defined in code, read-only context)
+  const node = (await readNode('combos')) as Record<string, any> | null
+  const items: Combo[] = []
+  if (node && typeof node === 'object') {
+    for (const [key, val] of Object.entries(node)) {
+      if (!val || typeof val !== 'object') continue
+      const v = val as Record<string, any>
+      items.push({
+        id: hashId(`combo:${String(v.nombre ?? v.name ?? key)}`),
+        name: String(v.nombre ?? v.name ?? key),
+        description: String(v.descripcion ?? v.description ?? ''),
+        minProfiles: Number(v.minProfiles ?? v.perfiles ?? 2),
+        discountPercent: Number(v.descuento ?? v.discountPercent ?? 0),
+        isActive: Boolean(v.activo ?? v.isActive ?? true),
+        createdAt: String(v.createdAt ?? new Date(0).toISOString()),
+      })
+    }
+  }
+  if (items.length > 0) {
+    return items.sort((a, b) => a.minProfiles - b.minProfiles)
+  }
+  // Progressive discount tiers for ComboBuilder (fallback definido en código).
   return [
     { id: 1, name: 'Dúo', description: '2 perfiles', minProfiles: 2, discountPercent: 5, isActive: true, createdAt: new Date(0).toISOString() },
     { id: 2, name: 'Trío', description: '3 perfiles', minProfiles: 3, discountPercent: 8, isActive: true, createdAt: new Date(0).toISOString() },
@@ -282,8 +310,64 @@ export async function rtdbGetCombos(): Promise<Combo[]> {
   ]
 }
 
+export async function rtdbGetContent(): Promise<{ site: SiteContent; news: NewsItem[] }> {
+  const [hero, newsNode] = await Promise.all([readNode('content/hero'), readNode('content/news')])
+  const data = (hero && typeof hero === 'object' ? hero : {}) as Record<string, any>
+
+  const site: SiteContent = {
+    heroImageUrl: String(data.heroImageUrl ?? ''),
+    heroTitle: String(data.heroTitle ?? ''),
+    heroDescription: String(data.heroDescription ?? ''),
+    updatedAt: String(data.updatedAt ?? ''),
+  }
+
+  const news: NewsItem[] = []
+  if (newsNode && typeof newsNode === 'object') {
+    for (const [key, value] of Object.entries(newsNode)) {
+      if (!value || typeof value !== 'object') continue
+      const item = value as Record<string, any>
+      news.push({
+        id: hashId(`news:${key}`),
+        slug: String(item.slug ?? key),
+        title: String(item.title ?? item.titulo ?? key),
+        date: String(item.date ?? item.fecha ?? ''),
+        excerpt: String(item.excerpt ?? item.resumen ?? ''),
+        imageUrl: String(item.imageUrl ?? item.imagen ?? ''),
+        body: Array.isArray(item.body)
+          ? item.body.map((paragraph: unknown) => String(paragraph))
+          : [String(item.body ?? item.cuerpo ?? '')],
+        createdAt: String(item.createdAt ?? new Date(0).toISOString()),
+      })
+    }
+  }
+
+  return { site, news: news.sort((a, b) => +new Date(b.date) - +new Date(a.date)) }
+}
+
 export async function rtdbGetTheme(): Promise<ThemeResponse> {
-  const active: Theme = {
+  const node = (await readNode('themes')) as Record<string, any> | null
+  const themes: Theme[] = []
+
+  if (node && typeof node === 'object') {
+    for (const [key, val] of Object.entries(node)) {
+      if (!val || typeof val !== 'object') continue
+      const v = val as Record<string, any>
+      themes.push({
+        id: hashId(`theme:${key}`),
+        themeKey: String(v.themeKey ?? key),
+        primaryColor: String(v.primaryColor ?? '#8B5CF6'),
+        secondaryColor: String(v.secondaryColor ?? '#22D3EE'),
+        accentColor: String(v.accentColor ?? '#FBBF24'),
+        backgroundColor: String(v.backgroundColor ?? '#06060D'),
+        fontStyle: String(v.fontStyle ?? 'Sora'),
+        customCss: String(v.customCss ?? ''),
+        isActive: Boolean(v.isActive ?? false),
+        updatedAt: String(v.updatedAt ?? ''),
+      })
+    }
+  }
+
+  const fallback: Theme = {
     id: 1,
     themeKey: 'base',
     primaryColor: '#8B5CF6',
@@ -295,17 +379,41 @@ export async function rtdbGetTheme(): Promise<ThemeResponse> {
     isActive: true,
     updatedAt: new Date().toISOString(),
   }
-  return { active, themes: [active] }
+
+  const active = themes.find((theme) => theme.isActive) ?? themes[0] ?? fallback
+  return { active, themes: themes.length > 0 ? themes : [fallback] }
 }
 
 export async function rtdbValidateCoupon(code: string): Promise<CouponValidation> {
   const normalized = code.trim().toUpperCase()
-  // No coupon node in RTDB; read-only data source cannot validate external coupons.
+  const node = (await readNode('coupons')) as Record<string, any> | null
+  const list = node && typeof node === 'object' ? Object.values(node) : []
+  const coupon = list.find(
+    (item) => item && typeof item === 'object' && String((item as Record<string, any>).code ?? '').toUpperCase() === normalized,
+  ) as Record<string, any> | undefined
+  if (!coupon) {
+    return {
+      valid: false,
+      code: normalized,
+      discountPercent: 0,
+      message: 'El cupón no es válido o no está disponible por ahora.',
+    }
+  }
+  const discountPercent = Number(coupon.discountPercent ?? coupon.descuento ?? 0)
+  const isActive = Boolean(coupon.isActive ?? coupon.activo ?? true)
+  const expiryRaw = coupon.expiryDate ?? coupon.fecha_expiracion ?? null
+  const expired = expiryRaw ? new Date(String(expiryRaw)).getTime() < Date.now() : false
+  const maxUses = Number(coupon.maxUses ?? coupon.usosMaximos ?? 0)
+  const usedCount = Number(coupon.usedCount ?? coupon.usosUsados ?? 0)
+  const exhausted = maxUses > 0 && usedCount >= maxUses
+  const valid = isActive && !expired && !exhausted && discountPercent > 0
   return {
-    valid: false,
+    valid,
     code: normalized,
-    discountPercent: 0,
-    message: 'El cupón no es válido o no está disponible por ahora.',
+    discountPercent: valid ? discountPercent : 0,
+    message: valid
+      ? `Cupón aplicado: ${discountPercent}% de descuento.`
+      : 'El cupón no es válido, inactivo, agotado o ya expiró.',
   }
 }
 
@@ -371,7 +479,15 @@ function buildSnapshots(payload: CreateOrderPayload, products: FlatProduct[], co
 export async function rtdbCreateOrder(payload: CreateOrderPayload): Promise<OrderConfirmation> {
   const [products, combos, settings] = await Promise.all([getAllProducts(), rtdbGetCombos(), rtdbGetSettings()])
   const { snapshots, subtotal } = buildSnapshots(payload, products, combos)
-  const discountAmount = 0
+
+  // El total confirmado debe coincidir con lo que vio el cliente: cupón + descuento
+  // de estudiante aprobado. Ambos porcentajes se suman y se limitan al 100%.
+  const couponPercent = payload.couponCode
+    ? (await rtdbValidateCoupon(payload.couponCode)).discountPercent
+    : 0
+  const studentPercent = Math.max(0, Math.min(100, Number(payload.studentDiscountPercent ?? 0)))
+  const discountPercent = Math.min(100, couponPercent + studentPercent)
+  const discountAmount = round2((subtotal * discountPercent) / 100)
   const totalAmount = round2(Math.max(0, subtotal - discountAmount))
   const orderId = Math.floor(Date.now() / 1000)
   const orderNumber = `ECL-${String(orderId).slice(-8)}`
@@ -393,4 +509,95 @@ export async function rtdbCreateOrder(payload: CreateOrderPayload): Promise<Orde
     whatsAppUrl,
     createdAt,
   }
+}
+
+// ---------------------------------------------------------------------------
+// Nodos legacy que ahora también usa la tienda: opiniones y códigos/cuentas.
+// ---------------------------------------------------------------------------
+
+export interface RtdbOpinion {
+  id: string
+  nombre: string
+  estrellas: number
+  comentario: string
+  createdAt: string
+}
+
+export interface RtdbCustomerAsset {
+  key: string
+  node: string
+  titulo: string
+  valor: string
+  plataforma: string
+  vigenciaDesde: string
+  vigenciaHasta: string
+}
+
+function toList(raw: unknown): Array<[string, Record<string, any>]> {
+  if (!raw || typeof raw !== 'object') return []
+  const entries = Array.isArray(raw)
+    ? raw.map((value, index) => [String(index), value] as [string, Record<string, any>])
+    : Object.entries(raw as Record<string, any>)
+  return entries.filter(([, value]) => value && typeof value === 'object')
+}
+
+export async function rtdbGetOpiniones(): Promise<RtdbOpinion[]> {
+  const raw = await readNode('opiniones')
+  return toList(raw)
+    .map(([key, value]) => ({
+      id: key,
+      nombre: String(value.nombre ?? value.name ?? value.usuario ?? value.displayName ?? 'Cliente'),
+      estrellas: Math.max(1, Math.min(5, Number(value.estrellas ?? value.rating ?? value.calificacion ?? 5))),
+      comentario: String(value.comentario ?? value.texto ?? value.opinion ?? value.comentarios ?? ''),
+      createdAt: String(value.createdAt ?? value.fecha ?? new Date(0).toISOString()),
+    }))
+    .filter((item) => item.comentario.trim().length > 0)
+    .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
+}
+
+export async function rtdbSubmitOpinion(input: {
+  uid: string
+  nombre: string
+  email: string
+  estrellas: number
+  comentario: string
+}): Promise<void> {
+  await update(ref(rtdb, `opiniones/${input.uid}`), {
+    nombre: input.nombre,
+    email: input.email,
+    estrellas: input.estrellas,
+    comentario: input.comentario.trim(),
+    createdAt: new Date().toISOString(),
+  })
+}
+
+/** Lee los códigos/cuentas asignados al cliente, en cualquiera de los nodos legacy. */
+export async function rtdbGetCustomerAssets(uid: string, email: string): Promise<RtdbCustomerAsset[]> {
+  const nodes = ['codigos_streaming', 'códigos_streaming', 'cuentas de streaming', 'cuentas']
+  const found: RtdbCustomerAsset[] = []
+  const uidLower = uid.toLowerCase()
+  const emailLower = email.trim().toLowerCase()
+
+  for (const node of nodes) {
+    const raw = await readNode(node)
+    for (const [key, value] of toList(raw)) {
+      const text = JSON.stringify(value).toLowerCase()
+      if (!text.includes(uidLower) && (!emailLower || !text.includes(emailLower))) continue
+
+      found.push({
+        key,
+        node,
+        titulo: String(value.titulo ?? value.plataforma ?? value.platform ?? value.nombre ?? value.producto ?? key),
+        valor: String(
+          value.codigo ?? value.codigo_streaming ?? value.code ?? value.cuenta ?? value.email ??
+            value.usuario ?? value.valor ?? value.perfil ?? '',
+        ),
+        plataforma: String(value.plataforma ?? value.platform ?? value.servicio ?? ''),
+        vigenciaDesde: String(value.vigenciaDesde ?? value.desde ?? value.validFrom ?? value.fecha_inicio ?? ''),
+        vigenciaHasta: String(value.vigenciaHasta ?? value.hasta ?? value.validTo ?? value.fecha_fin ?? value.vencimiento ?? ''),
+      })
+    }
+  }
+
+  return found.sort((a, b) => a.titulo.localeCompare(b.titulo))
 }

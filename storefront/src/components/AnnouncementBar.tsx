@@ -34,7 +34,7 @@ export function AnnouncementBar({ banners, settings }: AnnouncementBarProps) {
   const current = messages[index % messages.length]
   const supportLink = buildWhatsAppLink(
     settings.whatsAppNumber,
-    'Hola Eclipse Tech, necesito ayuda con una licencia digital.',
+    `Hola ${settings.companyName}, necesito ayuda con una licencia digital.`,
   )
 
   return (

@@ -255,7 +255,7 @@ function ProductThumb({ imageUrl, name }: { imageUrl: string; name: string }) {
     <img
       src={imageUrl}
       alt=""
-      className="h-full w-full object-cover"
+      className="h-full w-full object-contain p-1"
       loading="lazy"
       onError={() => setFailed(true)}
     />

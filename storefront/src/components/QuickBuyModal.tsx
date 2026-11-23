@@ -99,7 +99,7 @@ export function QuickBuyModal() {
             <ProductImage
               src={product.imageUrl}
               alt={product.name}
-              className="absolute inset-0 h-full w-full object-cover"
+              className="absolute inset-0 h-full w-full object-contain p-8"
               eager
             />
             <div className="absolute inset-0 bg-gradient-to-t from-[#0b0b16] via-[#0b0b16]/25 to-transparent sm:bg-gradient-to-r sm:from-transparent sm:via-[#0b0b16]/10 sm:to-[#0b0b16]" />
