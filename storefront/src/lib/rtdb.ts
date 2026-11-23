@@ -247,7 +247,7 @@ export async function rtdbGetBanners(): Promise<Banner[]> {
       discountText: String(v.descuento ?? ''),
       expiryDate,
       isActive: (v.activo ?? true) && !isExpired,
-      imageUrl: String(v.imagen_fondo || v.imagen || ''),
+      imageUrl: String(v.imagen || v.imagen_fondo || ''),
       ctaText: String(v.cta_text ?? 'Ver más'),
       ctaUrl: String(v.cta_url ?? '#/'),
       sortOrder: typeof v.sortOrder === 'number' ? v.sortOrder : 0,

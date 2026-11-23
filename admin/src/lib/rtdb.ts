@@ -127,24 +127,24 @@ export async function rtdbGetDatabaseNode(node: string): Promise<Record<string, 
 
 export async function rtdbSaveDatabaseRecord(node: string, key: string, value: unknown): Promise<void> {
   if (!node || !key) throw new Error('El nodo y la clave son obligatorios.')
-
+  const target = key === '__root__' ? ref(rtdb, node) : ref(rtdb, `${node}/${key}`)
   if (node === 'usuarios') {
     // Escritura segura: roles conocidos y ningún otro campo.
     const record =
       value && typeof value === 'object' && !Array.isArray(value)
         ? (value as Record<string, unknown>)
         : null
-    const roles = ['admin', 'empleado', 'cliente']
+    const roles = ['admin', 'empleado', 'cliente', 'normal']
     if (
       !record ||
       Object.keys(record).some((field) => field !== 'rol') ||
       !roles.includes(String(record.rol))
     ) {
-      throw new Error('En usuarios solo se permite editar el campo rol (admin, empleado o cliente).')
+      throw new Error('En usuarios solo se permite editar el campo rol (admin, empleado, normal o cliente).')
     }
+    await update(target,{rol: String(record.rol)})
+    return
   }
-
-  const target = key === '__root__' ? ref(rtdb, node) : ref(rtdb, `${node}/${key}`)
   await set(target, value)
 }
 
@@ -469,6 +469,7 @@ export async function rtdbGetSettings(): Promise<PaymentSettings> {
   }
 }
 
+/** Todos los perfiles de clientes registrados en la tienda (RTDB). */
 /** Todos los perfiles de clientes registrados en la tienda (RTDB). */
 export async function rtdbGetCustomers(): Promise<CustomerProfile[]> {
   const raw = await readNode('usuarios_clientes')
@@ -806,15 +807,22 @@ export async function rtdbUpdateProduct(id: number, payload: ProductInput): Prom
   const items = await getAllProducts()
   const product = items.find((p) => p.id === id)
   if (!product) throw new Error('Producto no encontrado.')
-  const info: Record<string, unknown> = {
-    plan: payload.name,
-    nombre: payload.name,
-    precio: payload.basePrice,
-    descuento: payload.discountPercent,
-    tipo: payload.durationMonths >= 12 ? 'Anual' : payload.durationMonths >= 6 ? 'Semestral' : 'Mensual',
-    categoria: [String(payload.category ?? '').toLowerCase()],
+
+  const updates: Record<string, unknown> = {
+    'info/plan': payload.name,
+    'info/precio': payload.basePrice,
+    'info/descuento': payload.discountPercent > 0 ? `${payload.discountPercent}%` : '',
+    'info/tipo': payload.durationMonths >= 12 ? 'Anual' : payload.durationMonths >= 6 ? 'Semestral' : 'Mensual',
+    activa: payload.isActive,
+    actualizadoEn: new Date().toISOString(),
   }
-  await set(ref(rtdb, `catalogo/${product._platform}/${product._plan}`), { info, recursos: { imagen: payload.imageUrl }, actualizadoEn: new Date().toISOString() })
+
+  if (payload.imageUrl.trim()) {
+    updates['info/portada_individual'] = payload.imageUrl.trim()
+  }
+
+  await update(ref(rtdb, `catalogo/${product._platform}/${product._plan}`), updates)
+
   const finalPrice = round2(payload.basePrice * (1 - payload.discountPercent / 100))
   return {
     id: product.id,
@@ -831,7 +839,6 @@ export async function rtdbUpdateProduct(id: number, payload: ProductInput): Prom
     createdAt: product.createdAt,
   }
 }
-
 export async function rtdbToggleProduct(id: number, isActive: boolean): Promise<void> {
   const items = await getAllProducts()
   const product = items.find((p) => p.id === id)
