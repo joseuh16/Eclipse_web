@@ -488,8 +488,10 @@ export async function rtdbGetCustomers(): Promise<CustomerProfile[]> {
       uid,
       email: String(profile.email || profile.correo || ''),
       displayName: String(profile.displayName || profile.nombre || fullName),
-      isStudent: Boolean(profile.isStudent ?? rol === 'estudiante'),
-      studentApproved: Boolean(profile.studentApproved ?? rol === 'estudiante'),
+      isStudent: Boolean(profile.isStudent ?? profile.estudiante ?? rol === 'estudiante'),
+      // Un rol legacy "estudiante" NO significa aprobado: sigue necesitando revisión
+      // de credencial desde el panel, igual que los registros nuevos.
+      studentApproved: Boolean(profile.studentApproved ?? false),
       studentCredentialUrl: String(profile.studentCredentialUrl ?? ''),
       createdAt: String(profile.createdAt || profile.fecha_registro || ''),
       updatedAt: String(profile.updatedAt ?? ''),

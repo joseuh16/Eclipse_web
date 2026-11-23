@@ -69,10 +69,14 @@ function profilePath(uid: string) {
 
 function mapProfile(uid: string, raw: Record<string, any>, fallback: Partial<CustomerProfile> = {}): CustomerProfile {
   const now = new Date().toISOString()
+  const fullName = [raw.nombres, raw.apellidos]
+    .map((part) => String(part ?? '').trim())
+    .filter(Boolean)
+    .join(' ')
   return {
     uid,
-    email: String(raw.email ?? fallback.email ?? ''),
-    displayName: String(raw.displayName ?? raw.nombre ?? fallback.displayName ?? ''),
+    email: String(raw.email || raw.correo || fallback.email || ''),
+    displayName: String(raw.displayName || raw.nombre || fullName || fallback.displayName || ''),
     isStudent: Boolean(raw.isStudent ?? raw.estudiante ?? fallback.isStudent ?? false),
     studentApproved: Boolean(raw.studentApproved ?? fallback.studentApproved ?? false),
     studentCredentialUrl: String(raw.studentCredentialUrl ?? fallback.studentCredentialUrl ?? ''),

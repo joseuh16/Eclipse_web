@@ -1,6 +1,8 @@
 {
   "rules": {
-    
+    ".read": "auth != null",
+    ".write": "auth != null",
+
     "estadisticas": {
       ".read": true, 
       ".write": true
@@ -9,14 +11,14 @@
     "usuarios": {
       ".read": "auth != null",
       "$uid": {
-        ".write": "auth != null && (root.child('usuarios').child(auth.uid).child('rol').val() === 'admin' || auth.uid === $uid)"
+        ".write": "auth != null && (root.child('usuarios').child(auth.uid).child('rol').val() === 'admin' || auth.token.email == 'admin@eclipse.tech' || auth.token.email == 'jjaimej7@gmail.com' || auth.token.email == 'marisolestradaaguir@gmail.com' || auth.uid === $uid)"
       }
     },
       
      "usuarios_clientes": {
       ".read": "auth != null",
       "$uid": {
-        ".write": "auth != null && (root.child('usuarios').child(auth.uid).child('rol').val() === 'admin' || auth.uid === $uid)",
+        ".write": "auth != null && (root.child('usuarios').child(auth.uid).child('rol').val() === 'admin' || auth.token.email == 'admin@eclipse.tech' || auth.token.email == 'jjaimej7@gmail.com' || auth.token.email == 'marisolestradaaguir@gmail.com' || auth.uid === $uid)",
        
         "studentApproved": {
           ".write": "auth != null && (auth.token.email == 'admin@eclipse.tech' || auth.token.email == 'jjaimej7@gmail.com' || auth.token.email == 'marisolestradaaguir@gmail.com')",
@@ -26,28 +28,33 @@
     },
     "clientes": {
       ".read": "auth != null",
-      ".write": "auth != null && (root.child('usuarios').child(auth.uid).child('rol').val() === 'admin' || root.child('usuarios').child(auth.uid).child('rol').val() === 'empleado')",
+      ".write": "auth != null && (root.child('usuarios').child(auth.uid).child('rol').val() === 'admin' || auth.token.email == 'admin@eclipse.tech' || auth.token.email == 'jjaimej7@gmail.com' || auth.token.email == 'marisolestradaaguir@gmail.com' || root.child('usuarios').child(auth.uid).child('rol').val() === 'empleado')",
       ".indexOn": ["Id_relacion"]
     },
  
     "cuentas de streaming": {
      ".read": "auth != null",
-      ".write": "auth != null && (root.child('usuarios').child(auth.uid).child('rol').val() === 'admin' || root.child('usuarios').child(auth.uid).child('rol').val() === 'empleado')"
+      ".write": "auth != null && (root.child('usuarios').child(auth.uid).child('rol').val() === 'admin' || auth.token.email == 'admin@eclipse.tech' || auth.token.email == 'jjaimej7@gmail.com' || auth.token.email == 'marisolestradaaguir@gmail.com' || root.child('usuarios').child(auth.uid).child('rol').val() === 'empleado')"
+    },
+
+    "cuentas": {
+      ".read": "auth != null",
+      ".write": "auth != null && (root.child('usuarios').child(auth.uid).child('rol').val() === 'admin' || auth.token.email == 'admin@eclipse.tech' || auth.token.email == 'jjaimej7@gmail.com' || auth.token.email == 'marisolestradaaguir@gmail.com' || root.child('usuarios').child(auth.uid).child('rol').val() === 'empleado')"
     },
 
     "codigos_streaming": {
       ".read": "auth != null",
-      ".write": "auth != null && (root.child('usuarios').child(auth.uid).child('rol').val() === 'admin' || root.child('usuarios').child(auth.uid).child('rol').val() === 'empleado')"
+      ".write": "auth != null && (root.child('usuarios').child(auth.uid).child('rol').val() === 'admin' || auth.token.email == 'admin@eclipse.tech' || auth.token.email == 'jjaimej7@gmail.com' || auth.token.email == 'marisolestradaaguir@gmail.com' || root.child('usuarios').child(auth.uid).child('rol').val() === 'empleado')"
     },
 
     "limites_codigos": {
       ".read": "auth != null",
-      ".write": "auth != null && (root.child('usuarios').child(auth.uid).child('rol').val() === 'admin' || root.child('usuarios').child(auth.uid).child('rol').val() === 'empleado')"
+      ".write": "auth != null && (root.child('usuarios').child(auth.uid).child('rol').val() === 'admin' || auth.token.email == 'admin@eclipse.tech' || auth.token.email == 'jjaimej7@gmail.com' || auth.token.email == 'marisolestradaaguir@gmail.com' || root.child('usuarios').child(auth.uid).child('rol').val() === 'empleado')"
     },
 
     "códigos_streaming": {
       ".read": "auth != null",
-      ".write": "auth != null && (root.child('usuarios').child(auth.uid).child('rol').val() === 'admin' || root.child('usuarios').child(auth.uid).child('rol').val() === 'empleado')"
+      ".write": "auth != null && (root.child('usuarios').child(auth.uid).child('rol').val() === 'admin' || auth.token.email == 'admin@eclipse.tech' || auth.token.email == 'jjaimej7@gmail.com' || auth.token.email == 'marisolestradaaguir@gmail.com' || root.child('usuarios').child(auth.uid).child('rol').val() === 'empleado')"
     },
     
     "opiniones": {
@@ -57,15 +64,15 @@
     
        
     "Costos": {
-      ".read": "auth != null && (root.child('usuarios').child(auth.uid).child('rol').val() === 'admin' || root.child('usuarios').child(auth.uid).child('rol').val() === 'empleado')",
-      ".write": "auth != null && (root.child('usuarios').child(auth.uid).child('rol').val() === 'admin')"
+      ".read": "auth != null && (root.child('usuarios').child(auth.uid).child('rol').val() === 'admin' || auth.token.email == 'admin@eclipse.tech' || auth.token.email == 'jjaimej7@gmail.com' || auth.token.email == 'marisolestradaaguir@gmail.com' || root.child('usuarios').child(auth.uid).child('rol').val() === 'empleado')",
+      ".write": "auth != null && (root.child('usuarios').child(auth.uid).child('rol').val() === 'admin' || auth.token.email == 'admin@eclipse.tech' || auth.token.email == 'jjaimej7@gmail.com' || auth.token.email == 'marisolestradaaguir@gmail.com')"
     },
       
     "catalogo": {
      
       ".read": true,
    
-      ".write": "auth != null && (root.child('usuarios').child(auth.uid).child('rol').val() === 'admin')",
+      ".write": "auth != null && (root.child('usuarios').child(auth.uid).child('rol').val() === 'admin' || auth.token.email == 'admin@eclipse.tech' || auth.token.email == 'jjaimej7@gmail.com' || auth.token.email == 'marisolestradaaguir@gmail.com')",
 
       
       "$marca": {
@@ -74,7 +81,7 @@
           ".write": "auth != null && (auth.token.email == 'admin@eclipse.tech' || auth.token.email == 'jjaimej7@gmail.com' || auth.token.email == 'marisolestradaaguir@gmail.com')",
           "calificacion": {
             "$uid": {
-              ".write": "auth != null && (auth.uid === $uid || root.child('usuarios').child(auth.uid).child('rol').val() === 'admin')",
+              ".write": "auth != null && (auth.uid === $uid || root.child('usuarios').child(auth.uid).child('rol').val() === 'admin' || auth.token.email == 'admin@eclipse.tech' || auth.token.email == 'jjaimej7@gmail.com' || auth.token.email == 'marisolestradaaguir@gmail.com')",
               ".validate": "newData.hasChildren(['estrellas','nombre']) && newData.child('estrellas').isNumber() && newData.child('estrellas').val() >= 1 && newData.child('estrellas').val() <= 5 && newData.child('nombre').isString()"
             }
           }
@@ -83,7 +90,7 @@
     },
     "combos": {
       ".read": true,
-      ".write": "auth != null && (root.child('usuarios').child(auth.uid).child('rol').val() === 'admin')",
+      ".write": "auth != null && (root.child('usuarios').child(auth.uid).child('rol').val() === 'admin' || auth.token.email == 'admin@eclipse.tech' || auth.token.email == 'jjaimej7@gmail.com' || auth.token.email == 'marisolestradaaguir@gmail.com')",
       
       "$id": {
         ".write": "auth != null && (auth.token.email == 'admin@eclipse.tech' || auth.token.email == 'jjaimej7@gmail.com' || auth.token.email == 'marisolestradaaguir@gmail.com')"
@@ -92,7 +99,7 @@
     
      "promociones": {
       ".read": true,
-      ".write": "auth != null && (root.child('usuarios').child(auth.uid).child('rol').val() === 'admin')",
+      ".write": "auth != null && (root.child('usuarios').child(auth.uid).child('rol').val() === 'admin' || auth.token.email == 'admin@eclipse.tech' || auth.token.email == 'jjaimej7@gmail.com' || auth.token.email == 'marisolestradaaguir@gmail.com')",
     
       "destacado": {
         "$key": {
@@ -103,7 +110,7 @@
     
     "cupones": {
   ".read": true,
-  ".write": "auth != null && (root.child('usuarios').child(auth.uid).child('rol').val() === 'admin')",
+  ".write": "auth != null && (root.child('usuarios').child(auth.uid).child('rol').val() === 'admin' || auth.token.email == 'admin@eclipse.tech' || auth.token.email == 'jjaimej7@gmail.com' || auth.token.email == 'marisolestradaaguir@gmail.com')",
   "$codigo": {
     "cantidad_disponible": {
       ".write": "auth != null",
