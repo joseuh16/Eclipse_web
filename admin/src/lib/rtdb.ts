@@ -478,14 +478,20 @@ export async function rtdbGetCustomers(): Promise<CustomerProfile[]> {
   for (const [uid, value] of Object.entries(raw as Record<string, unknown>)) {
     if (!value || typeof value !== 'object') continue
     const profile = value as Record<string, unknown>
+    const fullName = [profile.nombres, profile.apellidos]
+      .map((part) => String(part ?? '').trim())
+      .filter(Boolean)
+      .join(' ')
+    const rol = String(profile.rol ?? '').toLowerCase().trim()
+
     customers.push({
       uid,
-      email: String(profile.email ?? ''),
-      displayName: String(profile.displayName ?? profile.nombre ?? ''),
-      isStudent: Boolean(profile.isStudent ?? false),
-      studentApproved: Boolean(profile.studentApproved ?? false),
+      email: String(profile.email || profile.correo || ''),
+      displayName: String(profile.displayName || profile.nombre || fullName),
+      isStudent: Boolean(profile.isStudent ?? rol === 'estudiante'),
+      studentApproved: Boolean(profile.studentApproved ?? rol === 'estudiante'),
       studentCredentialUrl: String(profile.studentCredentialUrl ?? ''),
-      createdAt: String(profile.createdAt ?? ''),
+      createdAt: String(profile.createdAt || profile.fecha_registro || ''),
       updatedAt: String(profile.updatedAt ?? ''),
     })
   }
@@ -494,7 +500,7 @@ export async function rtdbGetCustomers(): Promise<CustomerProfile[]> {
   return customers.sort(
     (a, b) =>
       Number(b.isStudent && !b.studentApproved) - Number(a.isStudent && !a.studentApproved) ||
-      +new Date(b.createdAt) - +new Date(a.createdAt) ||
+      (Date.parse(b.createdAt) || 0) - (Date.parse(a.createdAt) || 0) ||
       a.email.localeCompare(b.email),
   )
 }
