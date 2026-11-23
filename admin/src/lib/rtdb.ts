@@ -936,3 +936,6 @@ export async function rtdbSaveDelivery(
     deliveryEmailSent: emailSent,
   })
 }
+
+
+//esta mamada ya esta bien pero no se pq no se sube correctamente a git aunque haga push completo alv
