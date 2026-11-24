@@ -34,7 +34,7 @@ Nodos que consume la app:
 2. Pestaña **Sign-in method** → habilita **Correo electrónico/contraseña**.
 3. Crea el administrador:
    - **Users** → *Add user* → correo y contraseña.
-   - Correos autorizados por defecto en `firestore.rules`:
+   - Correos autorizados por defecto en `database.rules.json`:
      - `admin@eclipse.tech`
      - `jjaimej7@gmail.com`
      - `marisolestradaaguir@gmail.com`

@@ -49,7 +49,7 @@ Eclipse/
 ├── firebase.json          # Configuración CLI de Firebase
 ├── DEPLOY_HOSTINGER.md    # Guía de despliegue en Hostinger
 ├── scripts/dev.mjs        # Arranque conjunto en desarrollo
-└── backend/               # API .NET heredada (opcional, en desuso)
+└── FIREBASE_SETUP.md      # Activación de RTDB, Auth y Storage
 ```
 
 ## Inicio rápido
@@ -151,8 +151,8 @@ fallback, caché y compresión.
   no está disponible, comprimidas dentro del pedido.
 - Los pagos se validan manualmente; no se almacenan datos de tarjetas.
 
-## Documentación heredada
+## Documentación
 
-- `FIRESTORE_SETUP.md` — notas de la etapa anterior (Firestore).
-- `docs/` y `backend/` — API .NET/MySQL en desuso; no son necesarias para
-  operar la tienda ni el panel.
+- `FIREBASE_SETUP.md` — activación de Realtime Database, Auth y Storage.
+- `DEPLOY_HOSTINGER.md` — despliegue estático de la tienda y el panel.
+- Docker, MySQL y la API .NET fueron retirados: la operación es 100% Firebase.

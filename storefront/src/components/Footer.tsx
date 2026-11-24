@@ -1,20 +1,22 @@
-import { ArrowUpRight, Facebook, Instagram, Mail, MessageCircle, ShieldCheck, Sparkles, Youtube } from 'lucide-react'
+﻿import { ArrowUpRight, Facebook, Instagram, Mail, MessageCircle, ShieldCheck, Sparkles, Youtube } from 'lucide-react'
 import { useStore } from '../context/StoreContext'
+import { CONTACT_HOURS, CONTACT_PHONE, CONTACT_PHONE_HREF } from '../lib/contact'
 import { buildWhatsAppLink } from '../lib/pricing'
 import { scrollToId } from '../lib/hooks'
 import { Logo } from './Logo'
 
 const shopLinks = [
   { label: 'Catálogo', href: '#catalogo' },
+  { label: 'Promos', href: '#/promos' },
   { label: 'Noticias', href: '#/noticias' },
   { label: 'Quiénes somos', href: '#nosotros' },
   { label: 'FAQ', href: '#/faq' },
 ]
 
-// Redes oficiales. Instagram se actualiza en cuanto nos pases el link.
+// Nuestras redes sociales oficiales.
 const socialLinks = [
   { label: 'Facebook', href: 'https://www.facebook.com/profile.php?id=61591873076476', icon: Facebook },
-  { label: 'Instagram', href: 'https://www.instagram.com/eclipsetech', icon: Instagram },
+  { label: 'Instagram', href: 'https://www.instagram.com/per_eclipse/?hl=es', icon: Instagram },
   {
     label: 'YouTube',
     href: 'https://youtube.com/@eclipsehelp?si=Y2tlTeDtsaLRNpXZ',
@@ -74,7 +76,10 @@ export function Footer() {
               <ShieldCheck size={11} className="text-emerald-300/70" />
               Compra protegida y verificada
             </div>
-            <div className="mt-4 flex items-center gap-2">
+            <p className="mt-4 text-[9px] font-semibold uppercase tracking-[0.2em] text-white/30">
+              Nuestras redes sociales
+            </p>
+            <div className="mt-2 flex items-center gap-2">
               {socialLinks.map(({ label, href, icon: Icon }) => (
                 <a
                   key={label}
@@ -147,14 +152,14 @@ export function Footer() {
                 {settings.supportEmail}
               </a>
               <a
-                href="tel:+529852022975"
+                href={CONTACT_PHONE_HREF}
                 className="flex items-center gap-2 text-[10px] text-white/45 transition hover:text-white"
               >
                 <MessageCircle size={12} className="text-emerald-300/70" />
-                985 202 2975
+                {CONTACT_PHONE}
               </a>
               <p className="text-[8px] leading-4 text-white/25">
-                Horario de atención: Lun–Sáb, 9:00 a 20:00 hrs (CDMX).
+                Horario de atención: {CONTACT_HOURS}
               </p>
             </div>
           </div>

@@ -40,10 +40,42 @@ const DEFAULT_THEME: Theme = {
   updatedAt: '',
 }
 
+/** Fuentes de temas: se descargan solo cuando el tema las necesita. */
+const THEME_FONT_URLS: Record<string, string> = {
+  Fraunces:
+    'https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&display=swap',
+  'Special Elite': 'https://fonts.googleapis.com/css2?family=Special+Elite&display=swap',
+  'Mountains of Christmas':
+    'https://fonts.googleapis.com/css2?family=Mountains+of+Christmas:wght@400;700&display=swap',
+  Cinzel: 'https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&display=swap',
+  'Playfair Display':
+    'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&display=swap',
+  Fredoka: 'https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap',
+  Oswald: 'https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600;700&display=swap',
+  Outfit: 'https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap',
+}
+
+function ensureThemeFont(font: string) {
+  const url = THEME_FONT_URLS[font]
+  document.querySelectorAll<HTMLLinkElement>('link[data-theme-font]').forEach((link) => {
+    if (link.dataset.themeFont !== font) link.remove()
+  })
+  if (!url) return
+  const id = `theme-font-${font.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`
+  if (document.getElementById(id)) return
+  const link = document.createElement('link')
+  link.id = id
+  link.dataset.themeFont = font
+  link.rel = 'stylesheet'
+  link.href = url
+  document.head.appendChild(link)
+}
+
 const DEFAULT_SETTINGS: PaymentSettings = {
   id: 0,
   companyName: 'Eclipse Tech',
   logoUrl: '',
+  musicUrl: '',
   studentDiscountPercent: 0,
   bankName: 'BBVA México',
   beneficiary: 'Eclipse Digital MX',
@@ -202,6 +234,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     root.style.setProperty('--color-bg', theme.backgroundColor)
     root.style.setProperty('--font-app', `'${theme.fontStyle || 'Sora'}'`)
     root.style.setProperty('--font-display', `'${theme.fontStyle || 'Sora'}'`)
+    ensureThemeFont(theme.fontStyle || 'Sora')
     root.style.colorScheme = 'dark'
     root.classList.add('dark')
 

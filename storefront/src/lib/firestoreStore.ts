@@ -125,6 +125,7 @@ const DEFAULT_SETTINGS: PaymentSettings = {
   id: 1,
   companyName: 'Eclipse Tech',
   logoUrl: '',
+  musicUrl: '',
   studentDiscountPercent: 0,
   bankName: 'BBVA México',
   beneficiary: 'Eclipse Digital',

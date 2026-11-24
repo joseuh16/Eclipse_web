@@ -88,6 +88,7 @@ export function AccountModal({ open, onClose }: AccountModalProps) {
     try {
       await signIn(email, password)
       finish(`¡Bienvenido de nuevo${profile?.displayName ? `, ${profile.displayName}` : ''}!`)
+      window.location.hash = '#/cuenta'
     } catch (error) {
       toast(friendlyAuthError(error), 'error')
     } finally {
@@ -124,6 +125,7 @@ export function AccountModal({ open, onClose }: AccountModalProps) {
     try {
       await register({ name, email, password, isStudent, credential: isStudent ? credential : undefined })
       finish('Cuenta creada correctamente. ¡Bienvenido!')
+      window.location.hash = '#/cuenta'
     } catch (error) {
       const message = friendlyAuthError(error)
       toast(message, 'error')
@@ -342,11 +344,16 @@ export function AccountModal({ open, onClose }: AccountModalProps) {
                         className="mt-0.5 h-4 w-4 accent-[color:var(--color-primary)]"
                       />
                       <span>
-                        <span className="flex items-center gap-1.5 text-[11px] font-semibold text-white">
+                        <span className="flex flex-wrap items-center gap-1.5 text-[11px] font-semibold text-white">
                           <GraduationCap size={14} /> Soy estudiante
+                          {isStudent ? (
+                            <span className="rounded-full border border-accent/30 bg-accent/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-accent">
+                              Estudiante
+                            </span>
+                          ) : null}
                         </span>
                         <span className="mt-0.5 block text-[10px] leading-4 text-white/45">
-                          Adjunta tu credencial. El descuento aparecerá después de que el panel la apruebe.
+                          Adjunta una foto de tu credencial. Te avisaremos aquí cuando el panel la apruebe y el descuento se aplicará solo.
                         </span>
                       </span>
                     </label>

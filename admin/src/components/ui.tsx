@@ -1,6 +1,7 @@
 import type { LucideIcon } from 'lucide-react'
 import { AlertTriangle, X } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { useCallback, useEffect, useRef, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { useEscape, useLockBody } from '../lib/hooks'
 import { cn } from '../lib/utils'
 import type { OrderStatus } from '../types'
@@ -90,8 +91,15 @@ export function Modal({
   footer?: ReactNode
   size?: 'sm' | 'md' | 'lg' | 'xl'
 }) {
+  // Evita volver a suscribir Escape en cada render (los onClose suelen ser inline).
+  const closeRef = useRef(onClose)
+  useEffect(() => {
+    closeRef.current = onClose
+  }, [onClose])
+  const handleEscape = useCallback(() => closeRef.current(), [])
+
   useLockBody(open)
-  useEscape(open, onClose)
+  useEscape(open, handleEscape)
 
   if (!open) return null
 
@@ -102,11 +110,13 @@ export function Modal({
     xl: 'max-w-5xl',
   }
 
-  return (
+  // Portal al body: si el modal queda dentro de un contenedor con transform
+  // (ej. animate-fade-up), `fixed` se posiciona respecto a ese padre y sale
+  // de la pantalla al hacer scroll. Aquí siempre es respecto al viewport.
+  return createPortal(
     <div className="fixed inset-0 z-[80] flex items-end justify-center p-0 sm:items-center sm:p-6">
-      <button
-        type="button"
-        aria-label="Cerrar"
+      <div
+        aria-hidden="true"
         onClick={onClose}
         className="absolute inset-0 cursor-default bg-black/70 backdrop-blur-md"
       />
@@ -135,7 +145,8 @@ export function Modal({
           </div>
         ) : null}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 

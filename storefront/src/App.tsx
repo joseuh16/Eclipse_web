@@ -27,7 +27,7 @@ import { FeaturedRail } from './components/FeaturedRail'
 import { Footer } from './components/Footer'
 import { Header } from './components/Header'
 import { HeroCarousel } from './components/HeroCarousel'
-import { ReviewsSection } from './components/ReviewsSection'
+import { MusicPlayer } from './components/MusicPlayer'
 import { SupportChat } from './components/SupportChat'
 import { TrustStrip } from './components/TrustStrip'
 
@@ -45,6 +45,7 @@ const CuentaPage = lazy(() => import('./components/CuentaPage').then((m) => ({ d
 const DalePlayPage = lazy(() => import('./components/DalePlayPage').then((m) => ({ default: m.DalePlayPage })))
 const FaqPage = lazy(() => import('./components/FaqPage').then((m) => ({ default: m.FaqPage })))
 const NewsPage = lazy(() => import('./components/NewsPage').then((m) => ({ default: m.NewsPage })))
+const PromosPage = lazy(() => import('./components/PromosPage').then((m) => ({ default: m.PromosPage })))
 
 function getRoute() {
   const hash = window.location.hash.replace(/^#\/?/, '').replace(/\/$/, '')
@@ -204,6 +205,8 @@ export default function App() {
         <NewsPage slug={route.startsWith('noticias/') ? route.slice('noticias/'.length) : undefined} />
       ) : route === 'cuenta' ? (
         <CuentaPage />
+      ) : route === 'promos' ? (
+        <PromosPage banners={banners} />
       ) : route === 'dale-play' ? (
         <DalePlayPage />
       ) : (
@@ -211,7 +214,6 @@ export default function App() {
           <HeroCarousel banners={banners} />
           <TrustStrip />
           <AboutSection />
-          <ReviewsSection />
           <DoomsdayPromo />
           <CategoryPills active={category} onSelect={handleCategory} onCombos={() => setComboOpen(true)} />
 
@@ -244,6 +246,7 @@ export default function App() {
       </a>
 
       <CartDrawer onAccount={() => setAccountOpen(true)} />
+      <MusicPlayer url={settings.musicUrl} />
       <SupportChat />
 
       <Suspense fallback={null}>

@@ -17,8 +17,10 @@ import {
 } from 'lucide-react'
 import { useStore } from '../context/StoreContext'
 import { useCustomerAuth } from '../context/CustomerAuthContext'
+import { useToast } from '../context/ToastContext'
 import { api } from '../lib/api'
 import { openPaymentProof } from '../lib/events'
+import { getMyRtdbOrders } from '../lib/firebaseOrders'
 import type { RtdbCustomerAsset } from '../lib/rtdb'
 import { formatCurrency, formatDate } from '../lib/pricing'
 import { clearClientOrders, readClientOrders, type StoredOrder } from '../lib/clientOrders'
@@ -52,30 +54,49 @@ function dueInfo(order: StoredOrder) {
 
 export function CuentaPage() {
   const { settings } = useStore()
+  const { toast } = useToast()
   const { user, profile, studentDiscountPercent, logout } = useCustomerAuth()
-  const [orders, setOrders] = useState<StoredOrder[]>([])
+  const [localOrders, setLocalOrders] = useState<StoredOrder[]>([])
+  const [remoteOrders, setRemoteOrders] = useState<StoredOrder[]>([])
   const [assets, setAssets] = useState<RtdbCustomerAsset[]>([])
   const [selectedId, setSelectedId] = useState<number | null>(null)
 
   const ownerKey = user?.uid ?? user?.email ?? undefined
 
+  useEffect(() => {
+    const onApproved = () =>
+      toast('¡Tu descuento de estudiante fue aprobado! Ya aplica en tus compras.', 'success')
+    window.addEventListener('eclipse-student-approved', onApproved)
+    return () => window.removeEventListener('eclipse-student-approved', onApproved)
+  }, [toast])
+
+  // Pedidos guardados en Firebase + historial local, sin duplicados.
+  const orders = useMemo(() => {
+    const byId = new Map<number, StoredOrder>()
+    for (const order of localOrders) byId.set(order.orderId, order)
+    for (const order of remoteOrders) byId.set(order.orderId, { ...byId.get(order.orderId), ...order })
+    return [...byId.values()].sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
+  }, [localOrders, remoteOrders])
+
   const refresh = () => {
-    const next = readClientOrders(ownerKey)
-    setOrders(next)
-    setSelectedId((current) => (current && next.some((o) => o.orderId === current) ? current : next[0]?.orderId ?? null))
+    setLocalOrders(readClientOrders(ownerKey))
   }
 
   useEffect(() => {
     refresh()
     if (user) {
-      api
+      void api
         .getMisCodigos(user.uid, user.email || '')
         .then(setAssets)
         .catch(() => setAssets([]))
+      void getMyRtdbOrders(user.uid, user.email || '', settings)
+        .then(setRemoteOrders)
+        .catch(() => setRemoteOrders([]))
     } else {
       setAssets([])
+      setRemoteOrders([])
     }
-  }, [ownerKey, user])
+  }, [ownerKey, user, settings])
 
   const selected = useMemo(
     () => orders.find((o) => o.orderId === selectedId) ?? orders[0] ?? null,
@@ -165,12 +186,36 @@ export function CuentaPage() {
                 </span>
               )}
             </div>
-          ) : (
+          ) : null}
+
+          {profile?.isStudent ? (
+            <div
+              className={`mt-3 flex items-start gap-2.5 rounded-2xl border px-4 py-3 text-[11px] leading-5 ${
+                profile?.studentApproved
+                  ? 'border-emerald-400/20 bg-emerald-400/[0.06] text-emerald-100/80'
+                  : 'border-amber-400/20 bg-amber-400/[0.06] text-amber-100/80'
+              }`}
+            >
+              <GraduationCap size={15} className="mt-0.5 shrink-0" />
+              <div>
+                <p className="font-semibold">
+                  {profile?.studentApproved
+                    ? `Descuento de estudiante activo: -${studentDiscountPercent}%`
+                    : 'Credencial recibida, esperando aprobación'}
+                </p>
+                <p className="mt-0.5 opacity-80">
+                  {profile?.studentApproved
+                    ? 'El descuento se aplica automáticamente en cada compra mientras tu cuenta siga aprobada.'
+                    : 'Te avisaremos aquí en cuanto el panel revise tu credencial. No necesitas volver a iniciar sesión.'}
+                </p>
+              </div>
+            </div>
+          ) : !user ? (
             <div className="mt-5 flex items-center gap-2 rounded-2xl border border-primary/20 bg-primary/[0.07] px-4 py-3 text-[11px] text-white/60">
               <GraduationCap size={14} className="shrink-0 text-accent" />
               Inicia sesión desde <span className="font-semibold text-white">Mi cuenta</span> para activar tu descuento de estudiante.
             </div>
-          )}
+          ) : null}
 
           {user ? (
             <div className="mt-6 rounded-2xl border border-white/[0.08] bg-black/20 p-5">

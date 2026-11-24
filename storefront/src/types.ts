@@ -92,6 +92,8 @@ export interface PaymentSettings {
   companyName: string
   /** URL del logo subido desde el panel (si no hay, se usa el logo CSS). */
   logoUrl: string
+  /** Canción opcional configurada por el dueño (Eclipse +). */
+  musicUrl: string
   /** Descuento global para estudiantes aprobados, en porcentaje. */
   studentDiscountPercent: number
   bankName: string

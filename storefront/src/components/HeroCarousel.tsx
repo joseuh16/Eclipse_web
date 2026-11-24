@@ -127,7 +127,20 @@ export function HeroCarousel({ banners }: HeroCarouselProps) {
               </p>
 
               <div className="mt-7 flex flex-wrap items-center gap-3">
-                <button type="button" onClick={() => scrollToId('catalogo')} className="btn-primary group">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const target = banner.ctaUrl?.trim()
+                    if (target && /^https?:\/\//i.test(target)) {
+                      window.open(target, '_blank', 'noopener,noreferrer')
+                    } else if (target) {
+                      window.location.hash = target.startsWith('#') ? target : `#/${target}`
+                    } else {
+                      scrollToId('catalogo')
+                    }
+                  }}
+                  className="btn-primary group"
+                >
                   {banner.ctaText || 'Explorar catálogo'}
                   <ArrowRight size={16} className="transition group-hover:translate-x-0.5" />
                 </button>
@@ -188,6 +201,7 @@ export function HeroCarousel({ banners }: HeroCarouselProps) {
                   alt={banner.title}
                   className="h-full w-full animate-fade-in object-cover"
                   loading="eager"
+                  fetchPriority="high"
                   decoding="async"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#08080f] via-[#08080f]/10 to-black/20" />

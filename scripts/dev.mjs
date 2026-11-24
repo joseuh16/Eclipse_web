@@ -24,14 +24,6 @@ const targets = {
     args: ['run', 'dev'],
     port: 5174,
   },
-  api: {
-    label: 'api  ',
-    color: '\x1b[33m',
-    cwd: '.',
-    command: 'dotnet',
-    args: ['run', '--project', 'backend/Eclipse.Api'],
-    port: 8090,
-  },
 }
 
 const requested = process.argv.slice(2)

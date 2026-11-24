@@ -1,118 +1,109 @@
-import { useEffect, useRef, useState } from 'react'
-import { Bot, MessageCircle, Send, ShieldCheck, Sparkles, X } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Bot, ExternalLink, MessageCircle, Send, ShieldCheck, Sparkles, X } from 'lucide-react'
 import { useStore } from '../context/StoreContext'
-import { buildWhatsAppLink } from '../lib/pricing'
+import { buildChatKnowledge, getChatReply, type ChatAction, type ChatReply } from '../lib/chatbot'
 import { useEscape } from '../lib/hooks'
+import { buildWhatsAppLink } from '../lib/pricing'
 
-type ChatLink = { label: string; href: string }
-
-type ChatMessage = {
+type ChatMessage = ChatReply & {
   id: number
   role: 'bot' | 'user'
-  text: string
-  link?: ChatLink
-  goCatalog?: boolean
 }
 
-const QUICK_ACTIONS = [
-  '¿Cómo compro?',
-  'Métodos de pago',
-  'Mi pedido',
-  '+18 y verificación',
-  'Hablar con asesor',
-] as const
+const WELCOME_QUICK_REPLIES = ['Precios y planes', 'Métodos de pago', 'Horarios y contacto'] as const
+const QUICK_ACTIONS = [...WELCOME_QUICK_REPLIES, 'Hablar con asesor'] as const
 
 let nextId = 1
-function message(partial: Omit<ChatMessage, 'id'>): ChatMessage {
+function makeMessage(partial: Omit<ChatMessage, 'id'>): ChatMessage {
   return { id: nextId++, ...partial }
 }
 
+/**
+ * Widget flotante del asistente.
+ * - Sin API externa: las respuestas salen de `lib/chatbot.ts`.
+ * - Se cierra con Escape y vuelve a abrirse en el mismo estado.
+ */
 export function SupportChat() {
   const { settings } = useStore()
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState('')
+  const [typing, setTyping] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const timersRef = useRef<number[]>([])
 
-  const supportLink = buildWhatsAppLink(
-    settings.whatsAppNumber,
-    `Hola ${settings.companyName}, necesito ayuda con mi compra.`,
+  const knowledge = useMemo(
+    () =>
+      buildChatKnowledge(
+        settings,
+        buildWhatsAppLink(
+          settings.whatsAppNumber,
+          `Hola ${settings.companyName}, necesito ayuda con mi compra.`,
+        ),
+      ),
+    [settings],
   )
 
   const [messages, setMessages] = useState<ChatMessage[]>(() => [
-    message({
+    makeMessage({
       role: 'bot',
-      text: `¡Hola! Soy el asistente de ${settings.companyName}. Te ayudo con compras, pagos, entregas, descuentos de estudiante y verificación +18. ¿Qué necesitas?`,
+      text: `¡Hola! Soy el asistente de ${settings.companyName || 'Eclipse Tech'}. Solo respondo con información de esta página: compras, pagos, entregas, descuentos, promos y contacto. ¿Qué necesitas?`,
+      quickReplies: [...WELCOME_QUICK_REPLIES],
     }),
   ])
 
   useEscape(open, () => setOpen(false))
 
+  // Scroll automático al último mensaje (y también cuando aparece "escribiendo").
   useEffect(() => {
     if (!open) return
     const node = scrollRef.current
-    if (node) node.scrollTop = node.scrollHeight
-  }, [messages, open])
+    if (!node) return
+    const frame = window.requestAnimationFrame(() => {
+      node.scrollTop = node.scrollHeight
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [messages, typing, open])
 
-  const reply = (choice: string, echo = true) => {
-    const push = (text: string, extra: Partial<ChatMessage> = {}) => {
-      setMessages((current) => [...current, message({ role: 'bot', text, ...extra })])
-    }
+  // Evita actualizar el estado si el widget se desmonta con un temporizador activo.
+  useEffect(
+    () => () => {
+      timersRef.current.forEach((timer) => window.clearTimeout(timer))
+      timersRef.current = []
+    },
+    [],
+  )
 
-    if (echo) {
-      setMessages((current) => [...current, message({ role: 'user', text: choice })])
-    }
+  const sendMessage = (raw: string) => {
+    const text = raw.trim()
+    if (!text || typing) return
 
-    switch (choice) {
-      case '¿Cómo compro?':
-        push(
-          'Es muy fácil: 1) elige tu plataforma en el catálogo, 2) selecciona el plan y la duración, 3) agrega al carrito y completa tus datos, 4) paga por SPEI, Mercado Pago u OXXO y envía tu comprobante por WhatsApp. Te entregamos el acceso en cuanto se valida el pago.',
-          { goCatalog: true },
-        )
-        break
-      case 'Métodos de pago':
-        push(
-          `Aceptamos BBVA/SPEI, Mercado Pago y OXXO. ${settings.paymentNote}`,
-          { link: { label: 'Enviar comprobante por WhatsApp', href: supportLink } },
-        )
-        break
-      case 'Mi pedido':
-        push(
-          'Puedes revisar el número de orden, el estado y la fecha de pago en “Mi cuenta”. Guarda tu número de orden y envíanos el comprobante por WhatsApp para activarlo más rápido.',
-          { link: { label: 'Abrir Mi cuenta', href: '#/cuenta' } },
-        )
-        break
-      case '+18 y verificación':
-        push(
-          'Los productos +18 requieren confirmar mayoría de edad y subir una foto de tu credencial (INE o pasaporte) al finalizar la compra. Nuestro equipo la revisa en el panel antes de entregar el acceso; la foto se usa solo para verificar edad.',
-        )
-        break
-      case 'Hablar con asesor':
-        push('Claro, te conectamos por WhatsApp. Da clic abajo y un asesor humano te atiende.', {
-          link: { label: 'Abrir WhatsApp', href: supportLink },
-        })
-        break
-      default:
-        push('Te compartimos el canal directo para que un asesor lo revise contigo.', {
-          link: { label: 'Escribir por WhatsApp', href: supportLink },
-        })
-    }
+    setInput('')
+    setMessages((current) => [...current, makeMessage({ role: 'user', text })])
+    setTyping(true)
+
+    const reply = getChatReply(text, knowledge)
+    const timer = window.setTimeout(() => {
+      setMessages((current) => [...current, makeMessage({ role: 'bot', ...reply })])
+      setTyping(false)
+      timersRef.current = timersRef.current.filter((id) => id !== timer)
+    }, 650)
+    timersRef.current.push(timer)
   }
 
-  const send = () => {
-    const text = input.trim()
-    if (!text) return
-    setInput('')
-    const normalized = text.toLowerCase()
-
-    let choice: (typeof QUICK_ACTIONS)[number] = 'Hablar con asesor'
-    if (/precio|costo|cuanto|cuánto/.test(normalized)) choice = '¿Cómo compro?'
-    else if (/pago|pagar|spei|oxxo|mercado/.test(normalized)) choice = 'Métodos de pago'
-    else if (/pedido|orden|estado/.test(normalized)) choice = 'Mi pedido'
-    else if (/18|adulto|credencial|ine|mayor/.test(normalized)) choice = '+18 y verificación'
-    else if (/hola|buenas|información|informacion/.test(normalized)) choice = '¿Cómo compro?'
-
-    setMessages((current) => [...current, message({ role: 'user', text })])
-    reply(choice, false)
+  const handleAction = (action: ChatAction) => {
+    if ('href' in action) {
+      window.open(action.href, action.href.startsWith('http') ? '_blank' : '_self', 'noopener,noreferrer')
+      return
+    }
+    if ('route' in action) {
+      setOpen(false)
+      window.location.hash = action.route
+      return
+    }
+    setOpen(false)
+    window.setTimeout(() => {
+      document.getElementById(action.scrollTo)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 60)
   }
 
   return (
@@ -133,63 +124,86 @@ export function SupportChat() {
 
       {open && (
         <section
-          className="fixed bottom-20 right-3 z-40 flex max-h-[70vh] w-[calc(100vw-1.5rem)] max-w-sm flex-col overflow-hidden rounded-[1.4rem] border border-white/[0.12] bg-[#0b0b16]/95 shadow-[0_30px_80px_-20px_rgba(0,0,0,.9)] backdrop-blur-xl sm:right-6"
-          aria-label={`Asistente de compras ${settings.companyName}`}
+          className="fixed bottom-20 right-3 z-40 flex max-h-[min(72vh,34rem)] w-[calc(100vw-1.5rem)] max-w-sm flex-col overflow-hidden rounded-[1.4rem] border border-white/[0.12] bg-[#0b0b16]/95 shadow-[0_30px_80px_-20px_rgba(0,0,0,.9)] backdrop-blur-xl sm:right-6"
+          aria-label={`Asistente ${knowledge.companyName}`}
         >
           <header className="flex items-center gap-2.5 border-b border-white/[0.08] bg-[linear-gradient(120deg,rgb(var(--primary-rgb)/.25),transparent)] px-4 py-3">
             <span className="grid h-9 w-9 place-items-center rounded-full bg-primary/20 text-primary">
               <Bot size={17} />
             </span>
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold text-white">Asistente {settings.companyName}</p>
+              <p className="text-xs font-semibold text-white">Asistente {knowledge.companyName}</p>
               <p className="flex items-center gap-1 text-[9px] text-emerald-300/80">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                En línea · respuestas al instante
+                En línea · solo info de esta página
               </p>
             </div>
             <Sparkles size={14} className="text-accent/70" />
           </header>
 
-          <div ref={scrollRef} className="flex-1 space-y-2.5 overflow-y-auto px-3.5 py-3.5">
+          <div
+            ref={scrollRef}
+            aria-live="polite"
+            className="flex-1 space-y-2.5 overflow-y-auto px-3.5 py-3.5"
+          >
             {messages.map((item) => (
-              <div
-                key={item.id}
-                className={`flex ${item.role === 'user' ? 'justify-end' : 'justify-start'}`}
-              >
+              <div key={item.id} className={`flex ${item.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div
-                  className={`max-w-[85%] rounded-2xl px-3 py-2 text-[11px] leading-5 ${
+                  className={`max-w-[88%] rounded-2xl px-3 py-2 text-[11px] leading-5 ${
                     item.role === 'user'
                       ? 'rounded-br-md bg-primary text-white'
                       : 'rounded-bl-md border border-white/[0.07] bg-white/[0.04] text-white/70'
                   }`}
                 >
-                  <p>{item.text}</p>
-                  {item.link && (
-                    <a
-                      href={item.link.href}
-                      target={item.link.href.startsWith('http') ? '_blank' : undefined}
-                      rel="noreferrer"
-                      className="mt-2 inline-flex items-center gap-1 rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-2.5 py-1.5 text-[10px] font-semibold text-emerald-200 transition hover:bg-emerald-500/20"
-                    >
-                      <MessageCircle size={11} />
-                      {item.link.label}
-                    </a>
-                  )}
-                  {item.goCatalog && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setOpen(false)
-                        document.getElementById('catalogo')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                      }}
-                      className="mt-2 inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/[0.06] px-2.5 py-1.5 text-[10px] font-semibold text-white/70 transition hover:bg-white/10"
-                    >
-                      Ver catálogo
-                    </button>
-                  )}
+                  <p className="whitespace-pre-line">{item.text}</p>
+
+                  {item.quickReplies?.length ? (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {item.quickReplies.map((quick) => (
+                        <button
+                          key={quick}
+                          type="button"
+                          disabled={typing}
+                          onClick={() => sendMessage(quick)}
+                          className="rounded-full border border-primary/35 bg-primary/10 px-2.5 py-1 text-[9px] font-semibold text-white/80 transition hover:bg-primary/20 disabled:opacity-40"
+                        >
+                          {quick}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  {item.actions?.length ? (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {item.actions.map((action) => (
+                        <button
+                          key={action.label}
+                          type="button"
+                          onClick={() => handleAction(action)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-2.5 py-1.5 text-[10px] font-semibold text-emerald-200 transition hover:bg-emerald-500/20"
+                        >
+                          <ExternalLink size={10} />
+                          {action.label}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
               </div>
             ))}
+
+            {typing && (
+              <div className="flex justify-start">
+                <div className="flex items-center gap-1.5 rounded-2xl rounded-bl-md border border-white/[0.07] bg-white/[0.04] px-3 py-2 text-[10px] text-white/45">
+                  <span className="flex gap-0.5">
+                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-white/50 [animation-delay:-0.2s]" />
+                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-white/50 [animation-delay:-0.1s]" />
+                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-white/50" />
+                  </span>
+                  escribiendo…
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="border-t border-white/[0.08] px-3 py-2.5">
@@ -198,8 +212,9 @@ export function SupportChat() {
                 <button
                   key={action}
                   type="button"
-                  onClick={() => reply(action)}
-                  className="shrink-0 rounded-full border border-white/[0.1] bg-white/[0.04] px-2.5 py-1 text-[9px] font-medium text-white/55 transition hover:border-primary/40 hover:text-white"
+                  disabled={typing}
+                  onClick={() => sendMessage(action)}
+                  className="shrink-0 rounded-full border border-white/[0.1] bg-white/[0.04] px-2.5 py-1 text-[9px] font-medium text-white/55 transition hover:border-primary/40 hover:text-white disabled:opacity-40"
                 >
                   {action}
                 </button>
@@ -212,7 +227,7 @@ export function SupportChat() {
                 onKeyDown={(event) => {
                   if (event.key === 'Enter') {
                     event.preventDefault()
-                    send()
+                    sendMessage(input)
                   }
                 }}
                 placeholder="Escribe tu duda…"
@@ -221,8 +236,9 @@ export function SupportChat() {
               />
               <button
                 type="button"
-                onClick={send}
-                className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary text-white transition hover:brightness-110"
+                onClick={() => sendMessage(input)}
+                disabled={!input.trim() || typing}
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary text-white transition hover:brightness-110 disabled:opacity-40"
                 aria-label="Enviar mensaje"
               >
                 <Send size={15} />

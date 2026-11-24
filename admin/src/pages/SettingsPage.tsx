@@ -4,6 +4,7 @@ import {
   Image as ImageIcon,
   Mail,
   MessageCircle,
+  Music2,
   Percent,
   Save,
   ShieldCheck,
@@ -16,13 +17,14 @@ import { useCallback, useEffect, useState, type ChangeEvent, type FormEvent, typ
 import { FormError, PageHeader, Spinner } from '../components/ui'
 import { useToast } from '../context/ToastContext'
 import { api } from '../lib/api'
-import { uploadImage } from '../lib/upload'
+import { uploadAudio, uploadImage } from '../lib/upload'
 import { formatDate } from '../lib/utils'
 import type { PaymentSettings, PaymentSettingsInput } from '../types'
 
 const EMPTY_FORM: PaymentSettingsInput = {
   companyName: '',
   logoUrl: '',
+  musicUrl: '',
   studentDiscountPercent: 0,
   bankName: '',
   beneficiary: '',
@@ -79,6 +81,7 @@ export function SettingsPage() {
       setForm({
         companyName: data.companyName,
         logoUrl: data.logoUrl,
+        musicUrl: data.musicUrl,
         studentDiscountPercent: data.studentDiscountPercent,
         bankName: data.bankName,
         beneficiary: data.beneficiary,
@@ -113,6 +116,20 @@ export function SettingsPage() {
       toast('Logo subido. Guarda la configuración para aplicarlo.')
     } catch (caught) {
       toast(caught instanceof Error ? caught.message : 'No se pudo subir el logo.', 'error')
+    } finally {
+      event.target.value = ''
+    }
+  }
+
+  const handleMusicFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    try {
+      const url = await uploadAudio(file)
+      update('musicUrl', url)
+      toast('Canción subida. Guarda la configuración para activarla en la tienda.')
+    } catch (caught) {
+      toast(caught instanceof Error ? caught.message : 'No se pudo subir la canción.', 'error')
     } finally {
       event.target.value = ''
     }
@@ -166,6 +183,7 @@ export function SettingsPage() {
       const updated = await api.settings.update({
         companyName: form.companyName.trim(),
         logoUrl: form.logoUrl.trim(),
+        musicUrl: form.musicUrl.trim(),
         studentDiscountPercent: form.studentDiscountPercent,
         bankName: form.bankName.trim(),
         beneficiary: form.beneficiary.trim(),
@@ -282,6 +300,51 @@ export function SettingsPage() {
                         Quitar logo
                       </button>
                     ) : null}
+                  </div>
+                </div>
+              </div>
+              <div>
+                <span className="field-label">Música de la tienda (Eclipse +)</span>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <label className="field relative block cursor-pointer overflow-hidden p-0 sm:w-40">
+                    <span className="flex h-20 items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-white/[0.03]">
+                      <Music2 size={24} className="text-white/30" />
+                    </span>
+                    <input
+                      type="file"
+                      accept="audio/*"
+                      className="sr-only"
+                      onChange={(event) => void handleMusicFile(event)}
+                      aria-label="Subir música de la tienda"
+                    />
+                    <span className="absolute bottom-0 left-0 right-0 bg-black/55 px-3 py-1.5 text-center text-[10px] font-semibold uppercase tracking-[0.12em] text-white/80">
+                      Subir canción
+                    </span>
+                  </label>
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <input
+                      type="url"
+                      className="field"
+                      value={form.musicUrl}
+                      onChange={(event) => update('musicUrl', event.target.value)}
+                      placeholder="https://… o pega un enlace de audio"
+                    />
+                    {form.musicUrl ? (
+                      <div className="flex flex-col gap-2">
+                        <audio controls preload="none" src={form.musicUrl} className="h-9 w-full" />
+                        <button
+                          type="button"
+                          className="btn-secondary px-3 py-2 text-xs"
+                          onClick={() => update('musicUrl', '')}
+                        >
+                          <Trash2 size={13} />
+                          Quitar música
+                        </button>
+                      </div>
+                    ) : null}
+                    <p className="text-[11px] text-white/30">
+                      Opcional. Se muestra en la tienda sin reproducción automática.
+                    </p>
                   </div>
                 </div>
               </div>

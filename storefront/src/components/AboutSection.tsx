@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ChevronDown } from 'lucide-react'
+import { CONTACT_EMAIL, CONTACT_HOURS, CONTACT_PHONE } from '../lib/contact'
 import { cn } from '../lib/utils'
 
 export function AboutSection() {
@@ -51,7 +52,7 @@ export function AboutSection() {
           <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5 sm:col-span-2 lg:col-span-3">
             <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/30">Contacto</p>
             <p className="mt-2 text-xs leading-6 text-white/55">
-              985 202 2975 · pereclipsefeedback@gmail.com · Lun–Sáb, 9:00 a 20:00 hrs (CDMX).
+              {CONTACT_PHONE} · {CONTACT_EMAIL} · {CONTACT_HOURS}
             </p>
           </div>
         </div>

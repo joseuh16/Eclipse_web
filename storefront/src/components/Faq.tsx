@@ -1,6 +1,7 @@
 import { ChevronDown, MessageCircle } from 'lucide-react'
 import { useStore } from '../context/StoreContext'
 import { buildWhatsAppLink } from '../lib/pricing'
+import { ReviewsSection } from './ReviewsSection'
 
 const faqs = (companyName: string) => [
   {
@@ -68,7 +69,8 @@ export function Faq() {
   )
 
   return (
-    <section id="faq" className="page-shell scroll-mt-28 pt-16 sm:pt-24">
+    <>
+      <section id="faq" className="page-shell scroll-mt-28 pt-16 sm:pt-24">
       <div className="grid gap-8 lg:grid-cols-[0.72fr_1.28fr]">
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-white/35">
@@ -123,6 +125,9 @@ export function Faq() {
           ))}
         </div>
       </div>
-    </section>
+      </section>
+
+      <ReviewsSection />
+    </>
   )
 }

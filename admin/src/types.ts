@@ -210,6 +210,8 @@ export interface PaymentSettings {
   id: number
   companyName: string
   logoUrl: string
+  /** Canción opcional que el dueño sube/pega para la tienda (Eclipse +). */
+  musicUrl: string
   studentDiscountPercent: number
   bankName: string
   beneficiary: string

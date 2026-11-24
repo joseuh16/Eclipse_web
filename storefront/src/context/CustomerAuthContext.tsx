@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { User } from 'firebase/auth'
 import { useStore } from './StoreContext'
 import {
@@ -9,6 +9,7 @@ import {
   registerCustomer,
   signInCustomer,
   watchCustomerAuth,
+  watchCustomerProfile,
   type RegisterCustomerInput,
 } from '../lib/customerAuth'
 import type { CustomerProfile } from '../types'
@@ -35,6 +36,11 @@ export function CustomerAuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<CustomerProfile | null>(null)
   const [loading, setLoading] = useState(true)
+  const profileRef = useRef<CustomerProfile | null>(null)
+
+  useEffect(() => {
+    profileRef.current = profile
+  }, [profile])
 
   const loadProfile = useCallback(async (current: User | null) => {
     if (!current) {
@@ -56,6 +62,20 @@ export function CustomerAuthProvider({ children }: { children: ReactNode }) {
       void loadProfile(current).finally(() => setLoading(false))
     })
   }, [loadProfile])
+
+  // Sincronización en vivo: cuando el panel aprueba al estudiante, el descuento
+  // se aplica sin needing cerrar sesión y avisamos a la tienda con un evento.
+  useEffect(() => {
+    if (!user) return
+    return watchCustomerProfile(user.uid, (next) => {
+      if (!next) return
+      const previous = profileRef.current
+      if (previous?.isStudent && !previous.studentApproved && next.studentApproved) {
+        window.dispatchEvent(new CustomEvent('eclipse-student-approved'))
+      }
+      setProfile(next)
+    })
+  }, [user])
 
   const signIn = useCallback(async (email: string, password: string) => {
     const next = await signInCustomer(email, password)

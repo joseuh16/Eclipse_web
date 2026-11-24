@@ -456,6 +456,7 @@ export async function rtdbGetSettings(): Promise<PaymentSettings> {
     id: 1,
     companyName: String(data.companyName ?? 'Eclipse Tech'),
     logoUrl: String(data.logoUrl ?? ''),
+    musicUrl: String(data.musicUrl ?? ''),
     studentDiscountPercent: Number(data.studentDiscountPercent ?? 0),
     bankName: String(data.bankName ?? 'BBVA México'),
     beneficiary: String(data.beneficiary ?? 'Eclipse Digital'),
@@ -490,7 +491,10 @@ export async function rtdbGetCustomers(): Promise<CustomerProfile[]> {
       email: String(profile.email || profile.correo || ''),
       displayName: String(profile.displayName || profile.nombre || fullName),
       isStudent: Boolean(profile.isStudent ?? rol === 'estudiante'),
-      studentApproved: Boolean(profile.studentApproved ?? rol === 'estudiante'),
+      // El rol legacy "estudiante" NO aprueba el descuento: solo el panel puede hacerlo.
+      studentApproved:
+        profile.studentApproved === true ||
+        String(profile.studentApproved ?? '').toLowerCase() === 'true',
       studentCredentialUrl: String(profile.studentCredentialUrl ?? ''),
       createdAt: String(profile.createdAt || profile.fecha_registro || ''),
       updatedAt: String(profile.updatedAt ?? ''),

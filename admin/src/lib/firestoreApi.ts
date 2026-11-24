@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------------
 // Capa de datos del panel sobre Firestore.
-// Mantiene la misma interfaz que usaba la API .NET para no tocar las páginas.
+// Respaldo Firestore con la misma interfaz de la fachada principal (RTDB).
 // Colecciones: products, banners, coupons, combos, orders, themes, settings/main.
 // ---------------------------------------------------------------------------
 import {
@@ -471,6 +471,7 @@ const DEFAULT_SETTINGS: PaymentSettings = {
   id: 1,
   companyName: 'Eclipse Tech',
   logoUrl: '',
+  musicUrl: '',
   studentDiscountPercent: 0,
   bankName: 'BBVA México',
   beneficiary: 'Eclipse Digital',

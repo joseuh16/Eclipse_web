@@ -28,8 +28,9 @@ admin/src/
    ├─ firebase.ts               # initializeApp → auth, db, rtdb, storage
    ├─ firebaseAuth.ts           # login/logout/reset/observador + errores legibles
    ├─ upload.ts                 # subida de imágenes a Firebase Storage
-   ├─ firestoreApi.ts          # cliente de datos sobre Firestore
-   └─ api.ts                    # reexporta el cliente de Firestore (firestoreApi)
+   ├─ firestoreApi.ts          # respaldo Firestore (no usado por defecto)
+   └─ rtdb.ts                   # cliente principal sobre Realtime Database
+   └─ api.ts                    # fachada: RTDB primero, Firestore como fallback
 ```
 
 Regla de oro: **solo `lib/firebaseAuth.ts` y `context/AuthContext.tsx` conocen Firebase Auth**.
@@ -156,10 +157,9 @@ El punto de entrada de datos es `lib/firestoreApi.ts` (Firestore) y las páginas
 | `settings/main` | Pagos, WhatsApp y soporte |
 | `orders` | Pedidos (la tienda los crea; el panel los gestiona) |
 
-La tienda lee Firestore primero y cae a la RTDB (`catalogo`/`promociones`) si
-Firestore no está disponible o está vacío. Los pedidos se reflejan en Firestore
-de forma best-effort al confirmar la compra.
+La fuente principal es Realtime Database (`catalogo`, `promociones`, `orders`,
+`settings`…). Firestore solo se conserva como respaldo opcional.
 
-Requisito único: crear la base de datos Firestore y publicar `firestore.rules`
-(ver `FIRESTORE_SETUP.md`). No requiere Docker, MySQL ni la API .NET.
+Requisito único: habilitar Realtime Database, Auth y Storage en Firebase y
+publicar sus reglas (ver `FIREBASE_SETUP.md`). No requiere Docker, MySQL ni API .NET.
 

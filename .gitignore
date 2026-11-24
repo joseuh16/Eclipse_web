@@ -12,11 +12,6 @@ auth-users.json
 clientes-actuales.json
 clientes-para-subir.json
 
-# .NET build output
-bin/
-obj/
-*.user
-
 # Logs & OS files
 *.log
 npm-debug.log*

@@ -2,7 +2,7 @@
 // Fuente de datos de la tienda.
 // 1) Firebase Realtime Database (catalogo/promociones) — fuente principal.
 // 2) Firestore — respaldo de lectura.
-// Mantiene la misma interfaz que usaba la API .NET para no romper componentes.
+// Fachada de datos: RTDB es la fuente principal; Firestore queda como respaldo.
 // ---------------------------------------------------------------------------
 import type { Category, CreateOrderPayload, NewsItem, ProductQuery, SiteContent } from '../types'
 import {

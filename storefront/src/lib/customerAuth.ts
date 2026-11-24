@@ -12,7 +12,7 @@ import {
   updateProfile,
   type User,
 } from 'firebase/auth'
-import { get, ref, update } from 'firebase/database'
+import { get, onValue, ref, update } from 'firebase/database'
 import { auth, rtdb } from './firebase'
 import { uploadStudentCredential } from './storage'
 import type { CustomerProfile } from '../types'
@@ -170,4 +170,18 @@ export async function logoutCustomer(): Promise<void> {
 
 export function watchCustomerAuth(callback: (user: User | null) => void): () => void {
   return onAuthStateChanged(auth, callback)
+}
+
+/** Escucha el perfil en RTDB para reflejar al instante la aprobación del panel. */
+export function watchCustomerProfile(
+  uid: string,
+  callback: (profile: CustomerProfile | null) => void,
+): () => void {
+  return onValue(
+    ref(rtdb, profilePath(uid)),
+    (snap) => {
+      callback(snap.exists() ? mapProfile(uid, snap.val() as Record<string, any>) : null)
+    },
+    () => callback(null),
+  )
 }

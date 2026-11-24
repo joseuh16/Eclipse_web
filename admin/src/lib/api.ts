@@ -336,7 +336,7 @@ export const api = {
       if (params.status) items = items.filter((o) => o.status === params.status)
       if (params.adultOnly) {
         items = items.filter(
-          (o) => o.adultVerification != null || o.items.some((item) => item.isAdultOnly),
+          (o) => o.adultVerification != null || (o.items ?? []).some((item) => item.isAdultOnly),
         )
       }
       const term = params.search?.trim().toLowerCase()

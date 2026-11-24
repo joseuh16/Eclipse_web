@@ -17,6 +17,7 @@ interface HeaderProps {
 
 const NAV_ITEMS = [
   { label: 'Catálogo', id: 'catalogo', route: null as string | null },
+  { label: 'Promos', id: null, route: 'promos' },
   { label: 'Dale Play', id: null, route: 'dale-play' },
   { label: 'Noticias', id: null, route: 'noticias' },
   { label: 'FAQ', id: null, route: 'faq' },
@@ -36,6 +37,11 @@ export function Header({ onSearch, includeAdult, onAccount }: HeaderProps) {
     await logout()
     setMobileOpen(false)
     toast('Cerraste sesión. ¡Hasta luego!', 'success')
+  }
+
+  const openMyAccount = () => {
+    setMobileOpen(false)
+    window.location.hash = '#/cuenta'
   }
 
   useEffect(() => {
@@ -136,7 +142,7 @@ export function Header({ onSearch, includeAdult, onAccount }: HeaderProps) {
             <div className="hidden items-center gap-1.5 lg:flex">
               <button
                 type="button"
-                onClick={onAccount}
+                onClick={openMyAccount}
                 className="flex max-w-[170px] items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3.5 py-2.5 text-[11px] font-semibold text-white transition hover:border-primary/50"
                 title="Ver mi cuenta y mis pedidos"
               >
@@ -206,10 +212,7 @@ export function Header({ onSearch, includeAdult, onAccount }: HeaderProps) {
                 <div className="col-span-2 flex gap-2">
                   <button
                     type="button"
-                    onClick={() => {
-                      setMobileOpen(false)
-                      onAccount()
-                    }}
+                    onClick={openMyAccount}
                     className="flex flex-1 items-center gap-2 rounded-2xl border border-primary/25 bg-primary/10 px-4 py-3 text-left text-sm font-semibold text-white"
                   >
                     <User size={15} className="shrink-0 text-accent" />

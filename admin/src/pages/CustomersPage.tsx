@@ -104,10 +104,13 @@ export function CustomersPage() {
   const pendingCount = students.filter((customer) => !customer.studentApproved).length
   const approvedCount = students.length - pendingCount
 
-  const ordersFor = useCallback(
-    (customer: CustomerProfile): Order[] => {
+  // Se calcula una sola vez por carga: evitar filtrar todos los pedidos por
+  // cada cliente en cada render era lo que trababa al abrir "Ver detalle".
+  const ordersByCustomer = useMemo(() => {
+    const map = new Map<string, Order[]>()
+    for (const customer of customers) {
       const email = customer.email.trim().toLowerCase()
-      return orders.filter((order) => {
+      const matches = orders.filter((order) => {
         const uidMatch = Boolean(
           customer.uid && order.customerUid && customer.uid === order.customerUid,
         )
@@ -116,8 +119,14 @@ export function CustomersPage() {
         )
         return uidMatch || emailMatch
       })
-    },
-    [orders],
+      map.set(customer.uid, matches)
+    }
+    return map
+  }, [customers, orders])
+
+  const ordersFor = useCallback(
+    (customer: CustomerProfile): Order[] => ordersByCustomer.get(customer.uid) ?? [],
+    [ordersByCustomer],
   )
 
   const filtered = useMemo(() => {
@@ -402,7 +411,7 @@ export function CustomersPage() {
       </section>
 
       <Modal
-        open={detail !== null}
+        open={detail !== null && orderDetail === null}
         onClose={() => setDetail(null)}
         title={detail ? `Cliente · ${customerName(detail)}` : 'Detalle del cliente'}
         description={detail ? formatDate(detail.createdAt) : undefined}
@@ -631,10 +640,10 @@ export function CustomersPage() {
 
             <div>
               <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/35">
-                Artículos ({orderDetail.items.length})
+                Artículos ({(orderDetail.items ?? []).length})
               </p>
               <ul className="space-y-2">
-                {orderDetail.items.map((item, index) => (
+                {(orderDetail.items ?? []).map((item, index) => (
                   <li
                     key={`${item.productId ?? 'combo'}-${index}`}
                     className="flex items-center justify-between gap-3 rounded-xl border border-white/[0.07] bg-white/[0.025] p-3"
